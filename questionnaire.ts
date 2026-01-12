@@ -251,7 +251,10 @@ export default function questionnaire(pi: ExtensionAPI) {
 					const q = currentQuestion();
 					const opts = currentOptions();
 
-					lines.push(theme.fg("accent", "─".repeat(width)));
+					// Helper to add truncated line
+					const add = (s: string) => lines.push(truncateToWidth(s, width));
+
+					add(theme.fg("accent", "─".repeat(width)));
 
 					// Tab bar (multi-question only)
 					if (isMulti) {
@@ -270,48 +273,48 @@ export default function questionnaire(pi: ExtensionAPI) {
 						const submitColor = isSubmitTab ? (canSubmit ? "accent" : "dim") : (canSubmit ? "success" : "dim");
 						const submitText = isSubmitTab ? "[✓ Submit]" : "✓ Submit";
 						tabs.push(theme.fg(submitColor, submitText) + " →");
-						lines.push(truncateToWidth(" " + tabs.join(""), width));
+						add(" " + tabs.join(""));
 						lines.push("");
 					}
 
 					// Content
 					if (inputMode && q) {
-						lines.push(theme.fg("text", " " + q.prompt));
+						add(theme.fg("text", " " + q.prompt));
 						lines.push("");
-						lines.push(theme.fg("muted", " Type your answer (Shift+Enter for newline):"));
+						add(theme.fg("muted", " Type your answer (Shift+Enter for newline):"));
 						for (const line of editor.render(width - 2)) {
-							lines.push(" " + line);
+							add(" " + line);
 						}
 						lines.push("");
-						lines.push(theme.fg("dim", " Enter to submit • Esc to cancel"));
+						add(theme.fg("dim", " Enter to submit • Esc to cancel"));
 					} else if (currentTab === questions.length) {
-						lines.push(theme.fg("accent", theme.bold(" Ready to submit")));
+						add(theme.fg("accent", theme.bold(" Ready to submit")));
 						lines.push("");
 						for (const question of questions) {
 							const answer = answers.get(question.id);
 							if (answer) {
 								const prefix = answer.wasCustom ? "(wrote) " : "";
-								lines.push(theme.fg("muted", ` ${question.label}: `) + theme.fg("text", prefix + answer.label));
+								add(theme.fg("muted", ` ${question.label}: `) + theme.fg("text", prefix + answer.label));
 							}
 						}
 						lines.push("");
 						if (allAnswered()) {
-							lines.push(theme.fg("success", " Press Enter to submit"));
+							add(theme.fg("success", " Press Enter to submit"));
 						} else {
 							const missing = questions.filter((q) => !answers.has(q.id)).map((q) => q.label).join(", ");
-							lines.push(theme.fg("warning", ` Unanswered: ${missing}`));
+							add(theme.fg("warning", ` Unanswered: ${missing}`));
 						}
 					} else if (q) {
-						lines.push(theme.fg("text", " " + q.prompt));
+						add(theme.fg("text", " " + q.prompt));
 						lines.push("");
 						for (let i = 0; i < opts.length; i++) {
 							const opt = opts[i];
 							const selected = i === optionIndex;
 							const prefix = selected ? theme.fg("accent", "> ") : "  ";
 							const color = selected ? "accent" : "text";
-							lines.push(prefix + theme.fg(color, `${i + 1}. ${opt.label}`));
+							add(prefix + theme.fg(color, `${i + 1}. ${opt.label}`));
 							if (opt.description) {
-								lines.push("     " + theme.fg("muted", opt.description));
+								add("     " + theme.fg("muted", opt.description));
 							}
 						}
 					}
@@ -321,9 +324,9 @@ export default function questionnaire(pi: ExtensionAPI) {
 						const help = isMulti
 							? " Tab/←→ navigate • ↑↓ select • Enter confirm • Esc cancel"
 							: " ↑↓ navigate • Enter select • Esc cancel";
-						lines.push(theme.fg("dim", help));
+						add(theme.fg("dim", help));
 					}
-					lines.push(theme.fg("accent", "─".repeat(width)));
+					add(theme.fg("accent", "─".repeat(width)));
 
 					cachedLines = lines;
 					return lines;
