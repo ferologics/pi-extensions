@@ -304,7 +304,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 						// Show options for reference
 						renderOptions();
 						lines.push("");
-						add(theme.fg("muted", " Your answer (Shift+Enter for newline):"));
+						add(theme.fg("muted", " Your answer:"));
 						for (const line of editor.render(width - 2)) {
 							add(" " + line);
 						}
