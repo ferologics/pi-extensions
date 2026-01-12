@@ -277,11 +277,34 @@ export default function questionnaire(pi: ExtensionAPI) {
 						lines.push("");
 					}
 
+					// Helper to render options list
+					function renderOptions() {
+						for (let i = 0; i < opts.length; i++) {
+							const opt = opts[i];
+							const selected = i === optionIndex;
+							const isOther = opt.value === "__other__";
+							const prefix = selected ? theme.fg("accent", "> ") : "  ";
+							const color = selected ? "accent" : "text";
+							// Mark "Type something" differently when in input mode
+							if (isOther && inputMode) {
+								add(prefix + theme.fg("accent", `${i + 1}. ${opt.label} ✎`));
+							} else {
+								add(prefix + theme.fg(color, `${i + 1}. ${opt.label}`));
+							}
+							if (opt.description) {
+								add("     " + theme.fg("muted", opt.description));
+							}
+						}
+					}
+
 					// Content
 					if (inputMode && q) {
 						add(theme.fg("text", " " + q.prompt));
 						lines.push("");
-						add(theme.fg("muted", " Type your answer (Shift+Enter for newline):"));
+						// Show options for reference
+						renderOptions();
+						lines.push("");
+						add(theme.fg("muted", " Your answer (Shift+Enter for newline):"));
 						for (const line of editor.render(width - 2)) {
 							add(" " + line);
 						}
@@ -307,16 +330,7 @@ export default function questionnaire(pi: ExtensionAPI) {
 					} else if (q) {
 						add(theme.fg("text", " " + q.prompt));
 						lines.push("");
-						for (let i = 0; i < opts.length; i++) {
-							const opt = opts[i];
-							const selected = i === optionIndex;
-							const prefix = selected ? theme.fg("accent", "> ") : "  ";
-							const color = selected ? "accent" : "text";
-							add(prefix + theme.fg(color, `${i + 1}. ${opt.label}`));
-							if (opt.description) {
-								add("     " + theme.fg("muted", opt.description));
-							}
-						}
+						renderOptions();
 					}
 
 					lines.push("");
