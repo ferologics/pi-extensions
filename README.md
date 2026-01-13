@@ -52,7 +52,7 @@ Multi-question tool with tab navigation.
 }
 ```
 
-### plan-mode
+### better-plan-mode
 
 Read-only exploration mode for safe code analysis. Fork of pi's bundled plan-mode with customizations.
 
@@ -73,5 +73,5 @@ Symlink extensions to `~/.pi/agent/extensions/`:
 ```bash
 ln -s ~/.pi/repos/pi-extensions/question ~/.pi/agent/extensions/
 ln -s ~/.pi/repos/pi-extensions/questionnaire ~/.pi/agent/extensions/
-ln -s ~/.pi/repos/pi-extensions/plan-mode ~/.pi/agent/extensions/
+ln -s ~/.pi/repos/pi-extensions/better-plan-mode ~/.pi/agent/extensions/
 ```
