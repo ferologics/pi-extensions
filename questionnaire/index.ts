@@ -267,15 +267,20 @@ export default function questionnaire(pi: ExtensionAPI) {
 							const isAnswered = answers.has(questions[i].id);
 							const lbl = questions[i].label;
 							const box = isAnswered ? "■" : "□";
-							const color = isActive ? "accent" : isAnswered ? "success" : "muted";
-							const text = isActive ? `[${box} ${lbl}]` : `${box} ${lbl}`;
-							tabs.push(theme.fg(color, text) + " ");
+							const color = isAnswered ? "success" : "muted";
+							const text = ` ${box} ${lbl} `;
+							const styled = isActive
+								? theme.bg("selectedBg", theme.fg("text", text))
+								: theme.fg(color, text);
+							tabs.push(styled + " ");
 						}
 						const canSubmit = allAnswered();
 						const isSubmitTab = currentTab === questions.length;
-						const submitColor = isSubmitTab ? (canSubmit ? "accent" : "dim") : (canSubmit ? "success" : "dim");
-						const submitText = isSubmitTab ? "[✓ Submit]" : "✓ Submit";
-						tabs.push(theme.fg(submitColor, submitText) + " →");
+						const submitText = " ✓ Submit ";
+						const submitStyled = isSubmitTab
+							? theme.bg("selectedBg", theme.fg("text", submitText))
+							: theme.fg(canSubmit ? "success" : "dim", submitText);
+						tabs.push(submitStyled + " →");
 						add(" " + tabs.join(""));
 						lines.push("");
 					}
