@@ -327,11 +327,21 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		}
 
 		// Remove any previous plan-mode-context messages
-		const _beforeCount = event.messages.length;
 		const filtered = event.messages.filter((m) => {
+			// Filter by customType if present
+			if ((m as any).customType === "plan-mode-context") {
+				return false;
+			}
+			// Filter by content text as fallback
 			if (m.role === "user" && Array.isArray(m.content)) {
 				const hasOldContext = m.content.some((c) => c.type === "text" && c.text.includes("[PLAN MODE ACTIVE]"));
 				if (hasOldContext) {
+					return false;
+				}
+			}
+			// Also check if content is a string
+			if (m.role === "user" && typeof (m as any).content === "string") {
+				if ((m as any).content.includes("[PLAN MODE ACTIVE]")) {
 					return false;
 				}
 			}
