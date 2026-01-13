@@ -68,22 +68,48 @@ Exploring pi subagents for parallel task delegation.
 | reviewer | claude-4-opus | Nuanced feedback |
 | (future) scout | sonnet? | If speed > quality for simple lookups |
 
+## Reality Check: Orchestration Limitations
+
+**Neither extension supports true orchestration:**
+- Once spawned, subagents run to completion
+- No mid-task steering from main agent
+- Questions via questionnaire go to USER, not main agent
+- Chain mode has `{previous}` but no intervention points
+
+**What IS supported:**
+- Fire-and-forget parallel execution
+- Sequential handoffs via chain
+- Post-completion review by main agent
+
 ## Ideas to Explore
 
-### Supervisor Pattern
-Main agent delegates, then reviews subagent output before accepting:
+### Multi-Model Synthesis
+Spawn same task to different models, synthesize findings:
+```
+1. Main identifies analysis task
+2. Spawn analyst-opus and analyst-codex in parallel
+3. Both return structured output
+4. Main synthesizes/compares findings
+```
+
+Agents created:
+- `analyst-opus.md` (claude-4-opus)
+- `analyst-codex.md` (codex)
+
+### Supervisor Pattern (Post-Completion)
+Main agent delegates, then reviews subagent output after completion:
 ```
 1. Main identifies 3 tasks
 2. Spawn 3 subagents in parallel
-3. Main reviews each result
+3. Main reviews each result AFTER all complete
 4. If issues, main can re-delegate or fix directly
 ```
 
-### Question Escalation
-Subagents should escalate questions instead of guessing:
+### Question Escalation (Limited)
+Subagents CAN have questionnaire tool, but questions go to user not main:
 - Add questionnaire to subagent tools
 - Prompt subagents to prefer asking over assuming
-- Main agent can answer or forward to user
+- User answers, or aborts and provides context to main
 
 ### Structured Output
 Have subagents return structured JSON for easier parsing:
@@ -92,9 +118,33 @@ Have subagents return structured JSON for easier parsing:
 - Questions: [] (things that need clarification)
 - Result: actual output
 
+## Testing Both Extensions
+
+Can only have one `subagent` tool loaded at a time (same name).
+
+**Currently active:** Official (bundled)
+
+**To switch:**
+```bash
+# Switch to async variant:
+rm ~/.pi/agent/extensions/subagent
+ln -s ~/.pi/repos/pi-async-subagents ~/.pi/agent/extensions/subagent
+
+# Switch back to official:
+rm ~/.pi/agent/extensions/subagent
+ln -s /opt/homebrew/lib/node_modules/@mariozechner/pi-coding-agent/examples/extensions/subagent ~/.pi/agent/extensions/subagent
+```
+
 ## Decision: Which Extension?
 
 **TBD after testing**
+
+| Criteria | Official | Async |
+|----------|----------|-------|
+| Simplicity | ✅ 600 lines | ❌ 1700 lines |
+| Debugging | Basic | ✅ Artifacts, logs |
+| Background runs | ❌ | ✅ |
+| Maintained by | Mario (pi author) | Community |
 
 Options:
 1. Use official as-is (simpler, maintained)
