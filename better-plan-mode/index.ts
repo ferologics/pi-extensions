@@ -318,36 +318,25 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		}
 	});
 
-	// Filter out stale plan mode context messages from LLM context
-	// This ensures the agent only sees the CURRENT state (plan mode on/off)
+	// Filter out stale plan mode context from LLM when executing
 	pi.on("context", async (event) => {
-		// Only filter when NOT in plan mode (i.e., when executing)
-		if (planModeEnabled) {
-			return;
-		}
+		if (planModeEnabled) return;
 
-		// Remove any previous plan-mode-context messages
-		const filtered = event.messages.filter((m) => {
-			// Filter by customType if present
-			if ((m as any).customType === "plan-mode-context") {
-				return false;
+		const hasPlanModeMarker = (m: any): boolean => {
+			if (m.customType === "plan-mode-context") return true;
+			if (m.role !== "user") return false;
+
+			const content = m.content;
+			if (typeof content === "string") {
+				return content.includes("[PLAN MODE ACTIVE]");
 			}
-			// Filter by content text as fallback
-			if (m.role === "user" && Array.isArray(m.content)) {
-				const hasOldContext = m.content.some((c) => c.type === "text" && c.text.includes("[PLAN MODE ACTIVE]"));
-				if (hasOldContext) {
-					return false;
-				}
+			if (Array.isArray(content)) {
+				return content.some((c: any) => c.type === "text" && c.text?.includes("[PLAN MODE ACTIVE]"));
 			}
-			// Also check if content is a string
-			if (m.role === "user" && typeof (m as any).content === "string") {
-				if ((m as any).content.includes("[PLAN MODE ACTIVE]")) {
-					return false;
-				}
-			}
-			return true;
-		});
-		return { messages: filtered };
+			return false;
+		};
+
+		return { messages: event.messages.filter((m) => !hasPlanModeMarker(m)) };
 	});
 
 	// Inject plan mode context
@@ -411,42 +400,26 @@ After completing a step, include a [DONE:n] tag in your response.`,
 	pi.on("agent_end", async (event, ctx) => {
 		// In execution mode, check if all steps complete
 		if (executionMode && todoItems.length > 0) {
-			// Find all assistant messages since the last user message
+			// Collect text from all assistant messages since last user message
 			// (a single turn can have multiple assistant messages due to tool calls)
-			const messages = event.messages;
-			let lastUserIndex = -1;
-			for (let i = messages.length - 1; i >= 0; i--) {
-				if (messages[i].role === "user") {
-					lastUserIndex = i;
-					break;
-				}
-			}
+			const lastUserIndex = event.messages.findLastIndex((m) => m.role === "user");
+			const turnMessages = event.messages.slice(lastUserIndex + 1);
 
-			// Collect text from all assistant messages in this turn
-			const allTextContent: string[] = [];
-			for (let i = lastUserIndex + 1; i < messages.length; i++) {
-				const msg = messages[i];
-				if (msg.role === "assistant" && Array.isArray(msg.content)) {
-					const texts = msg.content
-						.filter((block): block is { type: "text"; text: string } => block.type === "text")
-						.map((block) => block.text);
-					allTextContent.push(...texts);
-				}
-			}
+			const textContent = turnMessages
+				.filter((m) => m.role === "assistant" && Array.isArray(m.content))
+				.flatMap((m) =>
+					(m.content as any[])
+						.filter((block) => block.type === "text")
+						.map((block) => block.text),
+				)
+				.join("\n");
 
-			const textContent = allTextContent.join("\n");
-			if (textContent) {
-				const doneSteps = extractDoneSteps(textContent);
-				if (doneSteps.length > 0) {
-					for (const step of doneSteps) {
-						const item = todoItems.find((t) => t.step === step);
-						if (item) {
-							item.completed = true;
-						}
-					}
-					updateStatus(ctx);
-				}
+			const doneSteps = extractDoneSteps(textContent);
+			for (const step of doneSteps) {
+				const item = todoItems.find((t) => t.step === step);
+				if (item) item.completed = true;
 			}
+			if (doneSteps.length > 0) updateStatus(ctx);
 
 			const allComplete = todoItems.every((t) => t.completed);
 			if (allComplete) {
