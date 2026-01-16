@@ -1,5 +1,14 @@
 # TODO
 
+## Plan mode improvements
+
+- Improve plan mode to better infer steps as todos
+    - Step 1:, Step 2:, etc.
+    - ### 8., ### 9., etc.
+- Allow referencing of files in plan refinement editor
+- Allow find tool use in plan mode
+- Questionnaire options can mark a choice as `(recommended)`
+
 ## Explore: Replace built-in todos with file-based tracking
 
 **Context:** Amp removed their todolist feature. Mario says todos confuse models. Same vibes here.

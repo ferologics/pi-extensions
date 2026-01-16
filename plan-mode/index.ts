@@ -5,17 +5,18 @@
  * When enabled, only read-only tools are available.
  *
  * Features:
- * - /plan command or Shift+P to toggle
+ * - /plan command or Ctrl+Alt+P to toggle
  * - Bash restricted to allowlisted read-only commands
- * - Extracts numbered plan steps and tracks progress
+ * - Extracts numbered plan steps from "Plan:" sections
  * - [DONE:n] markers to complete steps during execution
+ * - Progress tracking widget during execution
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { TextContent, AssistantMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage, TextContent } from "@mariozechner/pi-ai";
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { Key } from "@mariozechner/pi-tui";
-import { isSafeCommand, extractTodoItems, markCompletedSteps, type TodoItem } from "./utils.js";
+import { extractTodoItems, isSafeCommand, markCompletedSteps, type TodoItem } from "./utils.js";
 
 // Tools
 const PLAN_MODE_TOOLS = ["read", "bash", "grep", "find", "ls", "questionnaire"];
@@ -65,7 +66,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
                         ctx.ui.theme.fg("muted", ctx.ui.theme.strikethrough(item.text))
                     );
                 }
-                return ctx.ui.theme.fg("muted", "☐ ") + item.text;
+                return `${ctx.ui.theme.fg("muted", "☐ ")}${item.text}`;
             });
             ctx.ui.setWidget("plan-todos", lines);
         } else {
@@ -113,7 +114,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
         },
     });
 
-    pi.registerShortcut(Key.shift("p"), {
+    pi.registerShortcut(Key.ctrlAlt("p"), {
         description: "Toggle plan mode",
         handler: async (ctx) => togglePlanMode(ctx),
     });
@@ -172,7 +173,9 @@ Restrictions:
 Ask clarifying questions using the questionnaire tool.
 Use brave-search skill via bash for web research.
 
-Create a detailed numbered plan:
+Create a detailed numbered plan under a "Plan:" header:
+
+Plan:
 1. First step description
 2. Second step description
 ...
@@ -228,7 +231,7 @@ After completing a step, include a [DONE:n] tag in your response.`,
                 todoItems = [];
                 pi.setActiveTools(NORMAL_MODE_TOOLS);
                 updateStatus(ctx);
-                persistState(); // Save cleared state so resume doesn't restore old execution mode
+                persistState();
             }
             return;
         }
