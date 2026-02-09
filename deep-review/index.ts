@@ -118,6 +118,10 @@ A query is required, either as positional text or via \`--query\`.
 ## Stop command
 
 - \`/deep-review-stop\` stops an in-flight run.
+
+## Requirement
+
+- \`/skill:pr-context-packer\` must be installed and enabled (configure via \`pi config\`).
 `;
 
 const ANSI_REGEX = new RegExp(String.raw`\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007]*(?:\u0007|\u001b\\)`, "g");
@@ -520,22 +524,6 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
     return { ok: true, options };
 }
 
-function expandTildePath(value: string): string {
-    if (!value.startsWith("~")) {
-        return value;
-    }
-
-    if (value === "~") {
-        return os.homedir();
-    }
-
-    if (value.startsWith("~/")) {
-        return path.join(os.homedir(), value.slice(2));
-    }
-
-    return value;
-}
-
 async function pathExists(value: string): Promise<boolean> {
     try {
         await access(value);
@@ -545,37 +533,14 @@ async function pathExists(value: string): Promise<boolean> {
     }
 }
 
-async function resolveContextPackerSkillPath(projectDir: string): Promise<string> {
-    const envOverride = process.env.DEEP_REVIEW_CONTEXT_PACKER_SKILL?.trim();
-    const candidates = [
-        envOverride ? expandTildePath(envOverride) : undefined,
-        path.join(projectDir, ".pi", "skills", "pr-context-packer", "SKILL.md"),
-        path.join(projectDir, "pr-context-packer", "SKILL.md"),
-        path.join(os.homedir(), "dev", "pi-skills", "pr-context-packer", "SKILL.md"),
-        path.join(os.homedir(), ".pi", "skills", "pr-context-packer", "SKILL.md"),
-        path.join(
-            os.homedir(),
-            ".pi",
-            "agent",
-            "git",
-            "github.com",
-            "ferologics",
-            "pi-skills",
-            "pr-context-packer",
-            "SKILL.md",
-        ),
-    ].filter((candidate): candidate is string => !!candidate);
-
-    for (const candidate of candidates) {
-        if (await pathExists(candidate)) {
-            return candidate;
+function hasPrContextPackerSkillCommand(pi: ExtensionAPI): boolean {
+    return pi.getCommands().some((command) => {
+        if (command.source !== "skill") {
+            return false;
         }
-    }
 
-    const expected = candidates.map((candidate) => `- ${candidate}`).join("\n");
-    throw new Error(
-        `pr-context-packer skill not found. Checked:\n${expected}\nSet DEEP_REVIEW_CONTEXT_PACKER_SKILL=/absolute/path/to/SKILL.md to override.`,
-    );
+        return command.name === "skill:pr-context-packer" || command.name === "pr-context-packer";
+    });
 }
 
 function buildContextPackSkillPrompt(options: DeepReviewOptions): string {
@@ -699,21 +664,10 @@ function renderLiveWidget(ctx: ExtensionCommandContext, state: LiveState, force 
 async function runContextPackViaPi(
     options: DeepReviewOptions,
     cwd: string,
-    skillPath: string,
     activeRun: ActiveRun,
 ): Promise<ContextPackResult> {
     const commandPrompt = buildContextPackSkillPrompt(options);
-    const args = [
-        "-p",
-        "--no-session",
-        "--no-extensions",
-        "--no-skills",
-        "--skill",
-        skillPath,
-        "--thinking",
-        "off",
-        commandPrompt,
-    ];
+    const args = ["-p", "--no-session", "--no-extensions", "--thinking", "off", commandPrompt];
 
     return await new Promise<ContextPackResult>((resolve, reject) => {
         const startedAt = Date.now();
@@ -1338,11 +1292,10 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
 
             const options = parsed.options;
 
-            let skillPath: string;
-            try {
-                skillPath = await resolveContextPackerSkillPath(options.projectDir);
-            } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
+            if (!hasPrContextPackerSkillCommand(pi)) {
+                const message =
+                    "Missing required skill command: /skill:pr-context-packer. Enable/install the skill via pi config, then retry.";
+
                 pi.sendMessage({ customType: "deep-review-error", content: message, display: true });
                 if (ctx.hasUI) {
                     ctx.ui.notify(message, "error");
@@ -1383,7 +1336,7 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                 let debugDir: string | undefined;
 
                 try {
-                    const packResult = await runContextPackViaPi(options, ctx.cwd, skillPath, active);
+                    const packResult = await runContextPackViaPi(options, ctx.cwd, active);
 
                     const cleanedPackOutput = stripMarkdownFenceLines(stripAnsi(packResult.stdout));
                     const cleanedPackStderr = stripMarkdownFenceLines(stripAnsi(packResult.stderr));
