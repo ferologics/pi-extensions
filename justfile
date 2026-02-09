@@ -1,7 +1,7 @@
 default:
     @just --list
 
-check: fmt lint compile test
+check: fmt md-fmt lint compile test
 
 compile:
     tsc --noEmit
@@ -11,6 +11,9 @@ fmt:
 
 lint:
     npx @biomejs/biome lint .
+
+md-fmt:
+    dprint fmt --staged --allow-no-files
 
 remove-hooks:
     rm -f .git/hooks/pre-commit

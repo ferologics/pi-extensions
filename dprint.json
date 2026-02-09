@@ -1,0 +1,7 @@
+{
+    "plugins": ["https://plugins.dprint.dev/markdown-0.18.0.wasm"],
+    "includes": ["**/*.md"],
+    "markdown": {
+        "lineWidth": 120
+    }
+}
