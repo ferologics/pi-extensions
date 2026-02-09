@@ -7,9 +7,9 @@ Custom pi-coding-agent extensions.
 ```bash
 just              # List all commands
 just compile      # Type-check with tsc
-just fmt          # Format with Biome
+just fmt          # Format with Biome + dprint
 just lint         # Lint with Biome
-just check        # Format + lint + compile (full check)
+just check        # Format + lint + compile + tests (full check)
 
 just setup-hooks  # Install pre-commit hook
 just remove-hooks # Remove pre-commit hook
