@@ -28,6 +28,7 @@ extension-name/
 ```
 
 Current extensions:
+
 - `deep-review`
 - `pi-notify`
 - `plan-mode`
@@ -35,6 +36,7 @@ Current extensions:
 ## Type Checking
 
 Extensions import from pi's packages. The `tsconfig.json` maps these:
+
 - `@mariozechner/pi-coding-agent` - Extension API
 - `@mariozechner/pi-agent-core` - Message types
 - `@mariozechner/pi-ai` - Content types
