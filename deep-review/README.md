@@ -49,6 +49,8 @@ Typical runtime is ~6–20 minutes, depending on repo size and model latency.
 - `--query <text>` (alternative to positional query; cannot be combined with positional query text)
 - `--project <path>`
 - `--base <ref>`
+- `--context-pack <path>` (skip pack generation and use an existing context pack file)
+- `--budget <tokens>` (forwarded to `pr-context-packer --budget`; cannot combine with `--context-pack`)
 - `--model <id>`
 - `--effort minimal|low|medium|high|xhigh`
 - `--verbosity low|medium|high`
@@ -69,9 +71,11 @@ Typical runtime is ~6–20 minutes, depending on repo size and model latency.
 
 - The context-pack subprocess is launched with explicit skill scope:
   - `--no-skills --skill <bundled skills/pr-context-packer/SKILL.md>`
-- `deep-review` fails fast if that bundled skill file is missing.
+- If `--context-pack <path>` is provided, pack generation is skipped and the file is used directly.
+- `deep-review` only requires the bundled skill file when it needs to generate a pack.
 - Intended package layout is `pi-shit` (`extensions/` + `skills/` in one package).
-- Scribe expansion stays enabled in context-packer (no disable flag in this extension).
+- Scribe expansion stays enabled in context-packer (no `--no-scribe` relay in this extension yet).
+- Use `--budget <tokens>` to tighten context-pack size before the responses call.
 - Use `--no-summary` if you want parity mode without readable reasoning summary text.
 - The command updates Pi UI live with a compact status widget (phase + stream progress).
 - Streamed thinking/answer text is not previewed live in the widget; full markdown answer is posted at completion.

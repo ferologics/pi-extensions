@@ -15,6 +15,8 @@ type DeepReviewOptions = {
     query: string;
     projectDir: string;
     baseRef?: string;
+    contextPackPath?: string;
+    contextPackBudget?: number;
     model: string;
     effort: ReasoningEffort;
     verbosity: TextVerbosity;
@@ -106,6 +108,8 @@ A query is required, either as positional text or via \`--query\`.
 - \`--query <text>\`         Review request text (alternative to positional query; cannot combine both)
 - \`--project <path>\`       Project dir for context packing (default: current cwd)
 - \`--base <ref>\`           Base ref for context pack diff (default: context-packer auto-detect)
+- \`--context-pack <path>\`  Skip context-pack generation and use an existing pack file
+- \`--budget <tokens>\`      Forwarded to context-packer \`--budget\` (example: \`180000\`; cannot combine with \`--context-pack\`)
 - \`--model <id>\`           Responses model (default: \`gpt-5.2\`)
 - \`--effort <level>\`       \`minimal|low|medium|high|xhigh\` (default: \`xhigh\`)
 - \`--verbosity <level>\`    \`low|medium|high\` (default: \`medium\`)
@@ -122,7 +126,8 @@ A query is required, either as positional text or via \`--query\`.
 
 ## Requirement
 
-- Bundled skill file must exist at \`skills/pr-context-packer/SKILL.md\` (via pi-shit package layout).
+- Bundled skill file must exist at \`skills/pr-context-packer/SKILL.md\` when generating a pack (via pi-shit package layout).
+- If \`--context-pack <path>\` is provided, deep-review uses that file directly and skips pack generation.
 `;
 
 const ANSI_REGEX = new RegExp(String.raw`\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007]*(?:\u0007|\u001b\\)`, "g");
@@ -284,6 +289,8 @@ async function writeOutputArtifacts(
         summary: options.summary,
         verbosity: options.verbosity,
         contextPackPath: packPath,
+        contextPackPathOverride: options.contextPackPath,
+        contextPackBudget: options.contextPackBudget,
         totalDurationMs,
         usage: responses.usage,
         responseId: responses.responseId,
@@ -429,6 +436,28 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
                 i++;
                 break;
             }
+            case "--context-pack": {
+                const value = takeValue(i);
+                if (!value) return { ok: false, message: `${token} requires a value` };
+                options.contextPackPath = value;
+                i++;
+                break;
+            }
+            case "--budget": {
+                const value = takeValue(i);
+                if (!value) return { ok: false, message: `${token} requires a value` };
+
+                const normalized = value.replace(/[,_]/g, "");
+                const parsedBudget = Number(normalized);
+
+                if (!Number.isSafeInteger(parsedBudget) || parsedBudget <= 0) {
+                    return { ok: false, message: `Invalid budget: ${value}` };
+                }
+
+                options.contextPackBudget = parsedBudget;
+                i++;
+                break;
+            }
             case "--model": {
                 const value = takeValue(i);
                 if (!value) return { ok: false, message: `${token} requires a value` };
@@ -522,6 +551,17 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
 
     options.projectDir = path.resolve(cwd, options.projectDir);
 
+    if (options.contextPackPath) {
+        options.contextPackPath = path.resolve(cwd, options.contextPackPath);
+    }
+
+    if (options.contextPackPath && options.contextPackBudget !== undefined) {
+        return {
+            ok: false,
+            message: "--context-pack cannot be combined with --budget (budget only applies when generating a pack).",
+        };
+    }
+
     return { ok: true, options };
 }
 
@@ -552,6 +592,10 @@ function buildContextPackSkillPrompt(options: DeepReviewOptions): string {
 
     if (options.baseRef) {
         args.push("--base", quoteForPrompt(options.baseRef));
+    }
+
+    if (options.contextPackBudget !== undefined) {
+        args.push("--budget", String(options.contextPackBudget));
     }
 
     const skillInvocation = `/skill:pr-context-packer ${args.join(" ")}`;
@@ -1118,6 +1162,17 @@ function summarizeContextPackMessage(packResult: ContextPackResult, packPath: st
     return lines.join("\n");
 }
 
+function summarizeProvidedContextPackMessage(packPath: string): string {
+    return [
+        "## Deep review · context pack stage",
+        "",
+        "- Duration: 0ms (skipped)",
+        `- Pack path: \`${packPath}\``,
+        "",
+        "Using provided pack via `--context-pack`; skipped nested context-pack generation.",
+    ].join("\n");
+}
+
 export function normalizeSectionLikeBoldMarkdown(markdown: string): string {
     if (!markdown.trim()) {
         return markdown;
@@ -1200,6 +1255,10 @@ function summarizeFinalMessage(
         "",
         `- Query: ${options.query}`,
         `- Context pack: \`${packPath}\``,
+        options.contextPackPath ? "- Context pack source: provided via `--context-pack`" : undefined,
+        options.contextPackBudget !== undefined
+            ? `- Context pack budget override: ${options.contextPackBudget.toLocaleString()} tokens`
+            : undefined,
         `- Context pack time: ${formatDuration(packDurationMs)}`,
         `- Responses time: ${formatDuration(responses.durationMs)}`,
         `- Total time: ${formatDuration(totalDurationMs)}`,
@@ -1307,16 +1366,18 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
 
             const options = parsed.options;
 
-            let skillPath: string;
-            try {
-                skillPath = await resolveBundledContextPackerSkillPath();
-            } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                pi.sendMessage({ customType: "deep-review-error", content: message, display: true });
-                if (ctx.hasUI) {
-                    ctx.ui.notify(message, "error");
+            let skillPath: string | undefined;
+            if (!options.contextPackPath) {
+                try {
+                    skillPath = await resolveBundledContextPackerSkillPath();
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    pi.sendMessage({ customType: "deep-review-error", content: message, display: true });
+                    if (ctx.hasUI) {
+                        ctx.ui.notify(message, "error");
+                    }
+                    return;
                 }
-                return;
             }
 
             const active: ActiveRun = {
@@ -1352,54 +1413,84 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                 let debugDir: string | undefined;
 
                 try {
-                    const packResult = await runContextPackViaPi(options, ctx.cwd, skillPath, active);
+                    let packPath: string | undefined;
+                    let packDurationMs = 0;
+                    let cleanedPackOutput = "";
+                    let cleanedPackStderr = "";
 
-                    const cleanedPackOutput = stripMarkdownFenceLines(stripAnsi(packResult.stdout));
-                    const cleanedPackStderr = stripMarkdownFenceLines(stripAnsi(packResult.stderr));
-                    const packPath = await extractContextPackPath(`${cleanedPackOutput}\n${cleanedPackStderr}`);
+                    if (options.contextPackPath) {
+                        packPath = options.contextPackPath;
 
-                    if (packResult.exitCode !== 0) {
-                        if (active.controller.signal.aborted) {
-                            throw new Error("Request was aborted");
+                        if (!(await pathExists(packPath))) {
+                            throw new Error(`Context pack file not found: ${packPath}`);
                         }
 
-                        const stdoutSnippet = truncate(cleanedPackOutput, 8000).text.trim();
-                        const stderrSnippet = truncate(cleanedPackStderr, 8000).text.trim();
-                        const contentLines = ["deep-review failed."];
+                        cleanedPackOutput = `Using existing context pack from --context-pack: ${packPath}`;
 
-                        if (stderrSnippet) {
-                            contentLines.push("", "### stderr", "", "```text", stderrSnippet, "```");
+                        pi.sendMessage({
+                            customType: "deep-review-context-pack",
+                            content: summarizeProvidedContextPackMessage(packPath),
+                            display: true,
+                        });
+                    } else {
+                        if (!skillPath) {
+                            throw new Error("Context-pack skill path is missing.");
                         }
 
-                        if (stdoutSnippet) {
-                            contentLines.push("", "### stdout", "", "```text", stdoutSnippet, "```");
+                        const packResult = await runContextPackViaPi(options, ctx.cwd, skillPath, active);
+
+                        cleanedPackOutput = stripMarkdownFenceLines(stripAnsi(packResult.stdout));
+                        cleanedPackStderr = stripMarkdownFenceLines(stripAnsi(packResult.stderr));
+                        packPath = await extractContextPackPath(`${cleanedPackOutput}\n${cleanedPackStderr}`);
+                        packDurationMs = packResult.durationMs;
+
+                        if (packResult.exitCode !== 0) {
+                            if (active.controller.signal.aborted) {
+                                throw new Error("Request was aborted");
+                            }
+
+                            const stdoutSnippet = truncate(cleanedPackOutput, 8000).text.trim();
+                            const stderrSnippet = truncate(cleanedPackStderr, 8000).text.trim();
+                            const contentLines = ["deep-review failed."];
+
+                            if (stderrSnippet) {
+                                contentLines.push("", "### stderr", "", "```text", stderrSnippet, "```");
+                            }
+
+                            if (stdoutSnippet) {
+                                contentLines.push("", "### stdout", "", "```text", stdoutSnippet, "```");
+                            }
+
+                            pi.sendMessage({
+                                customType: "deep-review-error",
+                                content: contentLines.join("\n"),
+                                display: true,
+                            });
+                            return;
+                        }
+
+                        if (!packPath) {
+                            const content = [
+                                "deep-review could not find the generated pack path in pi -p output.",
+                                "",
+                                "```text",
+                                truncate(cleanedPackOutput, 12000).text,
+                                "```",
+                            ].join("\n");
+                            pi.sendMessage({ customType: "deep-review-error", content, display: true });
+                            return;
                         }
 
                         pi.sendMessage({
-                            customType: "deep-review-error",
-                            content: contentLines.join("\n"),
+                            customType: "deep-review-context-pack",
+                            content: summarizeContextPackMessage(packResult, packPath),
                             display: true,
                         });
-                        return;
                     }
 
                     if (!packPath) {
-                        const content = [
-                            "deep-review could not find the generated pack path in pi -p output.",
-                            "",
-                            "```text",
-                            truncate(cleanedPackOutput, 12000).text,
-                            "```",
-                        ].join("\n");
-                        pi.sendMessage({ customType: "deep-review-error", content, display: true });
-                        return;
+                        throw new Error("Context pack path was not resolved.");
                     }
-
-                    pi.sendMessage({
-                        customType: "deep-review-context-pack",
-                        content: summarizeContextPackMessage(packResult, packPath),
-                        display: true,
-                    });
 
                     const contextText = await readFile(packPath, "utf8");
 
@@ -1454,7 +1545,7 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                     const preliminaryContent = summarizeFinalMessage(
                         options,
                         packPath,
-                        packResult.durationMs,
+                        packDurationMs,
                         responses,
                         totalDurationMs,
                         debugDir,
@@ -1483,7 +1574,7 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                     const finalContent = summarizeFinalMessage(
                         options,
                         packPath,
-                        packResult.durationMs,
+                        packDurationMs,
                         responses,
                         totalDurationMs,
                         debugDir,

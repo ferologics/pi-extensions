@@ -17,7 +17,10 @@ vi.mock("@mariozechner/pi-tui", () => ({
 }));
 
 let splitArgs: (input: string, platform?: NodeJS.Platform) => string[];
-let parseOptions: (rawArgs: string, cwd: string) => { ok: boolean; message?: string };
+let parseOptions: (
+    rawArgs: string,
+    cwd: string,
+) => { ok: boolean; message?: string; options?: { contextPackBudget?: number; contextPackPath?: string } };
 let extractContextPackPath: (output: string) => Promise<string | undefined>;
 let normalizeSectionLikeBoldMarkdown: (markdown: string) => string;
 let parseSseStream: (
@@ -50,6 +53,30 @@ describe("parseOptions", () => {
         const parsed = parseOptions('positional --query "flag"', "/tmp");
         expect(parsed.ok).toBe(false);
         expect(parsed.message).toContain("both positionally and via --query");
+    });
+
+    it("parses --budget and stores contextPackBudget", () => {
+        const parsed = parseOptions('"review this" --budget 180000', "/tmp");
+        expect(parsed.ok).toBe(true);
+        expect(parsed.options?.contextPackBudget).toBe(180000);
+    });
+
+    it("parses --context-pack and resolves it against cwd", () => {
+        const parsed = parseOptions('"review this" --context-pack packs/pr-context.txt', "/tmp/repo");
+        expect(parsed.ok).toBe(true);
+        expect(parsed.options?.contextPackPath).toBe(path.resolve("/tmp/repo", "packs/pr-context.txt"));
+    });
+
+    it("rejects invalid --budget values", () => {
+        const parsed = parseOptions('"review this" --budget nope', "/tmp");
+        expect(parsed.ok).toBe(false);
+        expect(parsed.message).toContain("Invalid budget");
+    });
+
+    it("rejects combining --context-pack with --budget", () => {
+        const parsed = parseOptions('"review this" --context-pack pack.txt --budget 120000', "/tmp/repo");
+        expect(parsed.ok).toBe(false);
+        expect(parsed.message).toContain("cannot be combined with --budget");
     });
 });
 
