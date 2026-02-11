@@ -1,5 +1,89 @@
 # TODO
 
+## Direct context-pack pipeline rewrite (replace nested `pi -p` skill path)
+
+Goal: move context packing fully into `extensions/deep-review` TypeScript code (no nested Pi session, no skill indirection), with deterministic selection and explicit omission reporting.
+
+Reference plan: `extensions/deep-review/CONTEXT_PACK_REWRITE_PLAN.md`
+
+### Phase 1 — Foundations
+
+- [x] Create `extensions/deep-review/context-pack/` module scaffold:
+  - `types.ts`
+  - `git.ts`
+  - `filters.ts`
+  - `scribe.ts`
+  - `rank.ts`
+  - `budget.ts`
+  - `render.ts`
+  - `artifacts.ts`
+  - `index.ts`
+- [x] Define typed result contract returned to `deep-review` command handler.
+- [x] Define `report.json` schema (versioned, stable keys for scripts/tests).
+
+### Phase 2 — Git + core context assembly
+
+- [x] Resolve repo root + base ref in TS (`--base` override + autodetect fallback).
+- [x] Collect changed files + name-status + diff in TS (parity with current output).
+- [x] Reuse/port safety filters and omission reason mapping from script.
+- [x] Build changed-file full-content blocks deterministically.
+
+### Phase 3 — Scribe recall integration (unbounded defaults)
+
+- [x] Call Scribe directly from TS for each eligible changed-file target.
+- [x] Default to unbounded recall behavior:
+  - no `--max-depth`
+  - no `--max-files`
+  - no target-limit cap
+  - include dependents
+- [x] Parse Scribe XML paths + stats (`limits_reached`, distances, reasons, etc.).
+- [x] Emit target-level audit manifest (`*.scribe.targets.tsv`) from structured data.
+
+### Phase 4 — Deterministic ranking + budget fit
+
+- [x] Build related candidate universe from Scribe outputs (deduped, deterministic).
+- [x] Rank candidates deterministically (stable tuple; no semantic model pass in this phase).
+- [x] Render baseline pack (no related) and token-count it.
+- [x] If baseline exceeds budget, fail with explicit `core-over-budget` diagnostics.
+- [x] Greedily include related files within remaining budget.
+- [x] Final token check + deterministic tail-trim loop until fit.
+- [x] Record all omitted related files with explicit reason (`over-budget`, filtered, overlap, etc.).
+
+### Phase 5 — Deep-review integration
+
+- [x] Replace nested `pi -p --skill` context-pack stage with direct TS packer call.
+- [x] Keep `--context-pack <path>` fast path (skip generation) intact.
+- [x] Update context-pack stage UI message to use typed metrics (not stdout parsing).
+- [x] Preserve existing handoff artifacts and markdown report format.
+
+### Phase 6 — Hard cutover + cleanup
+
+- [x] Add/expand unit tests (filters, ranking, budget-fit, report schema).
+- [ ] Add integration tests for:
+  - no Scribe available
+  - Scribe failure on subset of targets
+  - large related set with deterministic trimming
+  - baseline/core over budget
+- [x] Cut over directly to TS context-packer path (no engine flag).
+- [x] Delete nested `pi -p --skill` context-pack path and dead helpers in the same change.
+- [x] Update `extensions/deep-review/README.md` with new architecture + behavior.
+
+### Exit criteria
+
+- [x] `/deep-review` context packing no longer depends on nested Pi skill execution.
+- [x] Context-pack result path/metadata comes from typed TS return object only.
+- [x] Omitted files are always listed with explicit reasons.
+- [ ] Deterministic runs produce stable selection/manifests for identical input.
+- [ ] Existing deep-review response streaming/output behavior remains intact.
+
+### Future explore (parked)
+
+- [ ] Interactive omitted-file picker for budget arbitration (post-TS rewrite).
+- [ ] Add context-pack cache/reuse by repo + branch + base/head commit fingerprint:
+  - Auto-reuse latest matching pack when available.
+  - Allow override with explicit `--context-pack <path>`.
+  - Skip rebuild for repeated/concurrent reviews on same branch state.
+
 ## Add ChatGPT Codex backend path support
 
 Goal: allow `/deep-review` to run with ChatGPT Plus/Pro OAuth (`openai-codex`) by supporting the Codex responses endpoint in addition to OpenAI Platform API.
