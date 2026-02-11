@@ -68,6 +68,35 @@ flowchart TD
 
 ---
 
+## Recall strategy and budget philosophy
+
+### Default policy: recall first, cut later
+
+Context packing intentionally separates **recall** from **selection**:
+
+1. Recall broadly with Scribe (default unbounded traversal behavior)
+2. Build the full candidate universe visible to the packer
+3. Apply deterministic ranking and budget fit in the packer
+4. Omit only for explicit filter reasons or explicit budget pressure
+
+This keeps omission reasons auditable and avoids hidden upstream drops whenever possible.
+
+### Why this is different from bounded-Scribe-first
+
+Running Scribe with strict bounds first (for example shallow `--max-depth` / file caps) is **not equivalent** to rank-then-trim:
+
+- Bounded recall can hide high-value candidates before ranking sees them.
+- Rank-then-trim starts from a larger visible set and drops only at the selection boundary.
+- Tradeoff: bounded recall is usually faster; recall-first is usually safer for review completeness.
+
+### Future fallback shape (optional, not default)
+
+A future adaptive mode can still be useful for very large repos:
+
+- keep recall-first as default quality mode
+- add optional multi-pass/bounded recall profiles as a speed fallback
+- record the profile and bounds used in report metadata so behavior stays explainable
+
 ## Deterministic selection rules
 
 ### Ranking tuple
@@ -138,6 +167,10 @@ Note: related overlap with changed files is de-duplicated and not counted as rel
 4. **Request headroom reserve in deep-review**
    - Context-pack budget is reduced to leave room for query + protocol overhead.
 
+5. **Recall-first selection policy**
+   - Prefer broad recall and explicit budget trimming over early bounded graph pruning.
+   - Prioritizes review completeness and omission transparency over raw speed.
+
 ---
 
 ## Performance profile / known bottlenecks
@@ -177,8 +210,9 @@ Current stance:
 ## Future direction (summary)
 
 1. Speed-first optimization (batch token estimation, timing telemetry, targeted concurrency)
-2. Generic default policy (avoid overfitting to one repo shape)
-3. Optional repo-level policy overrides (for project-specific priorities)
-4. Optional UX fallback for budget arbitration (interactive omission control)
+2. Keep recall-first quality defaults; add optional adaptive bounded-recall fallback profiles for large repos
+3. Generic default policy (avoid overfitting to one repo shape)
+4. Optional repo-level policy overrides (for project-specific priorities)
+5. Optional UX fallback for budget arbitration (interactive omission control)
 
 See `TODO.md` for active items.

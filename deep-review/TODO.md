@@ -12,13 +12,16 @@ Reference: `extensions/deep-review/ARCH.md`
 - [ ] Reduce redundant render/tokenize loops where possible without losing deterministic guarantees
 - [ ] Explore bounded Scribe concurrency with deterministic post-sort merge
 
-### P1 — Selection policy quality
+### P1 — Recall / selection policy quality
 
 - [ ] Re-evaluate broad forced local-test inclusion (observed to improve some misses but displace runtime files)
 - [ ] Define a generic default policy that does not overfit a single repo shape
+- [ ] Prototype adaptive Scribe recall profiles (unbounded default + optional bounded fallback passes) and benchmark quality/runtime tradeoffs.
+- [ ] Add report metadata for recall mode/profile + any Scribe bounds used so omissions stay explainable.
 - [ ] Add optional repo-level override mechanism (for example `.pi/context-pack.rules.yaml`) for project-specific priorities
 - [ ] Add integration tests that assert mission-critical local code is not unexpectedly dropped in budget-tight runs
 - [ ] Complete missing integration coverage for no-Scribe, partial-Scribe-failure, deterministic trimming, and baseline-over-budget paths
+- [ ] Evaluate bounded-recall fallback outcomes vs rank-tail-trim outcomes across at least 2 repo shapes before changing defaults.
 
 ### P2 — UX controls for boundary cases
 
