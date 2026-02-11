@@ -14,8 +14,13 @@ export OPENAI_API_KEY=your_key_here
 # 2) Required for token budgeting in context pack stage
 cargo install tokencount
 
-# 3) Install/update package
+# 3) Install/update package (choose one)
+
+# bundled package
 pi install npm:pi-shit
+
+# standalone extension package
+pi install git:github.com/ferologics/pi-deep-review
 ```
 
 Then in Pi:

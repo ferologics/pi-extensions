@@ -1,0 +1,27 @@
+{
+    "name": "pi-deep-review",
+    "version": "0.1.0",
+    "description": "Deep PR review extension for Pi with deterministic context packing and Responses API streaming",
+    "keywords": [
+        "pi-package",
+        "pi",
+        "pi-coding-agent",
+        "code-review",
+        "openai"
+    ],
+    "author": "ferologics",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ferologics/pi-deep-review.git"
+    },
+    "homepage": "https://github.com/ferologics/pi-deep-review#readme",
+    "bugs": {
+        "url": "https://github.com/ferologics/pi-deep-review/issues"
+    },
+    "pi": {
+        "extensions": [
+            "index.ts"
+        ]
+    }
+}
