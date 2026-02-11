@@ -16,10 +16,10 @@ cargo install tokencount
 
 # 3) Install/update package (choose one)
 
-# bundled package
-pi install npm:pi-shit
+# standalone extension package (npm)
+pi install npm:pi-deep-review
 
-# standalone extension package
+# standalone extension package (git)
 pi install git:github.com/ferologics/pi-deep-review
 ```
 
