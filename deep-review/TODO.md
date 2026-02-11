@@ -1,5 +1,30 @@
 # TODO
 
+## Near-term priorities (updated)
+
+Reference: `extensions/deep-review/CONTEXT_PACK_INTERNALS.md`
+
+### P0 — Runtime / performance
+
+- [ ] Batch token estimation for related candidates (avoid one `tokencount` subprocess per file)
+- [ ] Add stage timing telemetry in report JSON (`git`, `scribe`, `filter`, `tokenize`, `render`)
+- [ ] Reduce redundant render/tokenize loops where possible without losing deterministic guarantees
+- [ ] Explore bounded Scribe concurrency with deterministic post-sort merge
+
+### P1 — Selection policy quality
+
+- [ ] Re-evaluate broad forced local-test inclusion (observed to improve some misses but displace runtime files)
+- [ ] Define a generic default policy that does not overfit a single repo shape
+- [ ] Add optional repo-level override mechanism (for example `.pi/context-pack.rules.yaml`) for project-specific priorities
+- [ ] Add integration tests that assert mission-critical local code is not unexpectedly dropped in budget-tight runs
+
+### P2 — UX controls for boundary cases
+
+- [ ] Explore optional interactive omission arbitration loop (user chooses what to keep/drop under budget pressure)
+- [ ] Explore optional advisory scoring pass (non-authoritative) for difficult tie-breaks
+
+---
+
 ## Direct context-pack pipeline rewrite (replace nested `pi -p` skill path)
 
 Goal: move context packing fully into `extensions/deep-review` TypeScript code (no nested Pi session, no skill indirection), with deterministic selection and explicit omission reporting.

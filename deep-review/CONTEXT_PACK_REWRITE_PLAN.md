@@ -1,8 +1,12 @@
 # Deep Review: Context Pack Rewrite Plan
 
-Status: draft architecture plan
+Status: historical implementation plan (rewrite completed)
 Owner: deep-review extension
 Scope: replace nested `pi -p` + skill/script invocation with deterministic TypeScript implementation colocated in `extensions/deep-review/`
+
+Active maintainer documentation now lives in:
+
+- `extensions/deep-review/CONTEXT_PACK_INTERNALS.md`
 
 ---
 

@@ -90,6 +90,7 @@ Generated pack output includes:
 - Related candidates that are already in changed files are de-duplicated from related omission stats/manifests.
 - Related test/test-data files are only eligible when close to changed modules (shared path affinity or short graph distance).
 - `--debug` writes context-pack + responses debug artifacts to a temp directory.
+- Maintainer internals and decision log: `extensions/deep-review/CONTEXT_PACK_INTERNALS.md`.
 - Streamed reasoning/answer text is not shown live in widget text; full markdown is posted at completion.
 - Final answer/thinking/report files are written to a temp handoff directory and linked in output.
 - The extension attempts to copy the final answer to clipboard automatically.
