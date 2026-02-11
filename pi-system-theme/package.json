@@ -23,5 +23,10 @@
         "extensions": [
             "index.ts"
         ]
+    },
+    "piRelease": {
+        "repo": "ferologics/pi-system-theme",
+        "branch": "main",
+        "subtreePublishRecipe": "publish-pi-system-theme"
     }
 }

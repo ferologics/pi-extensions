@@ -34,5 +34,10 @@
     },
     "publishConfig": {
         "access": "public"
+    },
+    "piRelease": {
+        "repo": "ferologics/pi-extensions",
+        "branch": "main",
+        "subtreePublishRecipe": "publish-extensions"
     }
 }
