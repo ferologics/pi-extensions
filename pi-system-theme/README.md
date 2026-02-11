@@ -56,16 +56,16 @@ After saving, the extension writes global overrides and applies changes immediat
 
 ## Install
 
+From npm (standalone package):
+
+```bash
+pi install npm:pi-system-theme
+```
+
 From git:
 
 ```bash
 pi install git:github.com/ferologics/pi-system-theme
-```
-
-As part of `pi-shit` package:
-
-```bash
-pi install npm:pi-shit
 ```
 
 Or from local source while developing:
