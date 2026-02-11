@@ -31,6 +31,7 @@ Current extensions:
 
 - `deep-review`
 - `pi-notify`
+- `pi-system-theme`
 - `plan-mode`
 
 ## Type Checking

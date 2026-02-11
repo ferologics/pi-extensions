@@ -4,8 +4,9 @@ Use this file as an index (and for truly shared extension-platform chores).
 
 ## Extension backlogs
 
-- Plan mode: `plan-mode/TODO.md`
 - Deep review: `deep-review/TODO.md`
+- Pi system theme: `pi-system-theme/TODO.md`
+- Plan mode: `plan-mode/TODO.md`
 
 ## Ownership rules
 

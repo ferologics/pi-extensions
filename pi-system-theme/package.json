@@ -1,0 +1,27 @@
+{
+    "name": "pi-system-theme",
+    "version": "0.1.0",
+    "description": "Sync Pi theme with macOS light/dark appearance",
+    "keywords": [
+        "pi-package",
+        "pi",
+        "pi-coding-agent",
+        "theme",
+        "macos"
+    ],
+    "author": "ferologics",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ferologics/pi-system-theme.git"
+    },
+    "homepage": "https://github.com/ferologics/pi-system-theme#readme",
+    "bugs": {
+        "url": "https://github.com/ferologics/pi-system-theme/issues"
+    },
+    "pi": {
+        "extensions": [
+            "index.ts"
+        ]
+    }
+}
