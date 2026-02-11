@@ -2,11 +2,23 @@
     "name": "pi-extensions",
     "private": true,
     "type": "module",
+    "keywords": [
+        "pi-package",
+        "pi-extension"
+    ],
     "scripts": {
         "test": "vitest run",
         "test:watch": "vitest"
     },
     "devDependencies": {
         "vitest": "^3.1.0"
+    },
+    "pi": {
+        "extensions": [
+            "deep-review/index.ts",
+            "pi-notify/index.ts",
+            "pi-system-theme/index.ts",
+            "plan-mode/index.ts"
+        ]
     }
 }

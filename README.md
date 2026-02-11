@@ -13,6 +13,12 @@ Custom extensions for [pi-coding-agent](https://github.com/badlogic/pi-mono).
 
 Each extension folder contains full usage details and examples.
 
+## Install as a Pi package
+
+```bash
+pi install git:github.com/ferologics/pi-extensions
+```
+
 ## Setup
 
 Symlink extensions to `~/.pi/agent/extensions/`:
