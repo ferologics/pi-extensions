@@ -7,6 +7,7 @@ Reference: `extensions/deep-review/ARCH.md`
 ### P0 — Runtime / performance
 
 - [ ] Batch token estimation for related candidates (avoid one `tokencount` subprocess per file)
+- [ ] Remove external `tokencount` dependency by embedding in-extension token counting (JS tokenizer path), keeping parity with current budgeting behavior.
 - [ ] Add stage timing telemetry in report JSON (`git`, `scribe`, `filter`, `tokenize`, `render`)
 - [ ] Reduce redundant render/tokenize loops where possible without losing deterministic guarantees
 - [ ] Explore bounded Scribe concurrency with deterministic post-sort merge

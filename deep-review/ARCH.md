@@ -46,24 +46,24 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[Resolve repo + base ref] --> B[Collect changed files + diff]
-    B --> C[Filter/validate changed files]
-    C --> D[Run Scribe recall for eligible changed targets]
-    D --> E[Merge + dedupe related candidates]
+    A[Resolve repo and base ref] --> B[Collect changed files and diff]
+    B --> C[Filter and validate changed files]
+    C --> D[Run Scribe recall for changed targets]
+    D --> E[Merge and dedupe related candidates]
     E --> F[Apply related filters]
     F --> G[Rank candidates deterministically]
     G --> H[Estimate candidate tokens]
-    H --> I[Render baseline pack (changed only)]
-    I --> J[Token count baseline]
-    J --> K{baseline > budget?}
-    K -- yes --> L[core-over-budget failure report]
-    K -- no --> M[Budget-fit related candidates]
+    H --> I[Render baseline pack changed only]
+    I --> J[Count baseline tokens]
+    J --> K{Baseline over budget}
+    K -- yes --> L[Fail core over budget]
+    K -- no --> M[Budget fit related candidates]
     M --> N[Render final pack]
-    N --> O[Token count final]
-    O --> P{final > budget?}
-    P -- yes --> Q[Tail-trim lowest-ranked related, retry]
+    N --> O[Count final tokens]
+    O --> P{Final over budget}
+    P -- yes --> Q[Tail trim lowest ranked related and retry]
     Q --> N
-    P -- no --> R[Write manifests + report.json]
+    P -- no --> R[Write manifests and report json]
 ```
 
 ---

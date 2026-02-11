@@ -1,11 +1,22 @@
 {
     "name": "pi-extensions",
-    "private": true,
+    "version": "0.1.0",
+    "description": "Custom Pi extensions bundle (deep-review, pi-notify, pi-system-theme, plan-mode)",
     "type": "module",
     "keywords": [
         "pi-package",
         "pi-extension"
     ],
+    "author": "ferologics",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ferologics/pi-extensions.git"
+    },
+    "homepage": "https://github.com/ferologics/pi-extensions#readme",
+    "bugs": {
+        "url": "https://github.com/ferologics/pi-extensions/issues"
+    },
     "scripts": {
         "test": "vitest run",
         "test:watch": "vitest"
@@ -20,5 +31,8 @@
             "pi-system-theme/index.ts",
             "plan-mode/index.ts"
         ]
+    },
+    "publishConfig": {
+        "access": "public"
     }
 }
