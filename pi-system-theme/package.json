@@ -1,6 +1,6 @@
 {
     "name": "pi-system-theme",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Sync Pi theme with macOS light/dark appearance",
     "keywords": [
         "pi-package",
