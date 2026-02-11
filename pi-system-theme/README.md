@@ -41,18 +41,18 @@ Example:
 
 ## Interactive command
 
-Use `/system-theme` to edit all knobs directly:
+Use `/system-theme` to open a small settings menu and edit:
 
 1. dark theme name
 2. light theme name
 3. poll interval (ms)
 
-After saving, the extension writes global overrides and applies changes immediately.
+Choose **Save and apply** to persist overrides and apply immediately.
 
 ## Notes
 
 - This extension currently only acts on macOS (`process.platform === "darwin"`).
-- If a configured theme name is missing, it falls back to Pi built-ins (`dark`/`light`).
+- If a configured theme name does not exist, Pi keeps the current theme and logs a warning.
 
 ## Install
 

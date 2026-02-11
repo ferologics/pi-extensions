@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -7,19 +7,13 @@ import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@m
 
 const execFileAsync = promisify(execFile);
 
-type Appearance = "dark" | "light" | "unknown";
-
-type RawConfig = {
-    darkTheme?: unknown;
-    lightTheme?: unknown;
-    pollMs?: unknown;
-};
-
 type Config = {
     darkTheme: string;
     lightTheme: string;
     pollMs: number;
 };
+
+type Appearance = "dark" | "light";
 
 const DEFAULT_CONFIG: Config = {
     darkTheme: "dark",
@@ -28,74 +22,32 @@ const DEFAULT_CONFIG: Config = {
 };
 
 const GLOBAL_CONFIG_PATH = path.join(os.homedir(), ".pi", "agent", "system-theme.json");
-const MIN_POLL_MS = 500;
 const DETECTION_TIMEOUT_MS = 1200;
-
-function toNonEmptyString(value: unknown): string | undefined {
-    if (typeof value !== "string") return undefined;
-
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function toPositiveInteger(value: unknown): number | undefined {
-    if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
-
-    const rounded = Math.round(value);
-    return rounded > 0 ? rounded : undefined;
-}
-
-function mergeConfig(base: Config, rawConfig: RawConfig | undefined): Config {
-    if (!rawConfig) return base;
-
-    const darkTheme = toNonEmptyString(rawConfig.darkTheme) ?? base.darkTheme;
-    const lightTheme = toNonEmptyString(rawConfig.lightTheme) ?? base.lightTheme;
-
-    const pollMsValue = toPositiveInteger(rawConfig.pollMs);
-    const pollMs = pollMsValue ? Math.max(pollMsValue, MIN_POLL_MS) : base.pollMs;
-
-    return {
-        darkTheme,
-        lightTheme,
-        pollMs,
-    };
-}
+const MIN_POLL_MS = 500;
 
 function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function readConfig(pathToConfig: string): Promise<RawConfig | undefined> {
-    try {
-        await access(pathToConfig);
-    } catch {
-        return undefined;
+function toThemeName(value: unknown, fallback: string): string {
+    if (typeof value !== "string") {
+        return fallback;
     }
 
-    try {
-        const rawContent = await readFile(pathToConfig, "utf8");
-        const parsed = JSON.parse(rawContent) as unknown;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : fallback;
+}
 
-        if (!isObject(parsed)) {
-            console.warn(`[pi-system-theme] Ignoring ${pathToConfig}: expected a JSON object.`);
-            return undefined;
-        }
-
-        return parsed;
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn(`[pi-system-theme] Failed to load ${pathToConfig}: ${message}`);
-        return undefined;
+function toPollMs(value: unknown, fallback: number): number {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        return fallback;
     }
+
+    return Math.max(MIN_POLL_MS, Math.round(value));
 }
 
-async function loadConfig(): Promise<Config> {
-    const globalConfig = await readConfig(GLOBAL_CONFIG_PATH);
-    return mergeConfig(DEFAULT_CONFIG, globalConfig);
-}
-
-function getOverrides(config: Config): Record<string, string | number> {
-    const overrides: Record<string, string | number> = {};
+function getOverrides(config: Config): Partial<Config> {
+    const overrides: Partial<Config> = {};
 
     if (config.darkTheme !== DEFAULT_CONFIG.darkTheme) {
         overrides.darkTheme = config.darkTheme;
@@ -112,29 +64,65 @@ function getOverrides(config: Config): Record<string, string | number> {
     return overrides;
 }
 
-async function writeGlobalOverrides(config: Config): Promise<{ wroteFile: boolean; overrideCount: number }> {
+async function loadConfig(): Promise<Config> {
+    const config = { ...DEFAULT_CONFIG };
+
+    try {
+        const rawContent = await readFile(GLOBAL_CONFIG_PATH, "utf8");
+        const parsed = JSON.parse(rawContent) as unknown;
+
+        if (!isObject(parsed)) {
+            console.warn(`[pi-system-theme] Ignoring ${GLOBAL_CONFIG_PATH}: expected JSON object.`);
+            return config;
+        }
+
+        config.darkTheme = toThemeName(parsed.darkTheme, config.darkTheme);
+        config.lightTheme = toThemeName(parsed.lightTheme, config.lightTheme);
+        config.pollMs = toPollMs(parsed.pollMs, config.pollMs);
+
+        return config;
+    } catch (error) {
+        if ((error as { code?: string })?.code === "ENOENT") {
+            return config;
+        }
+
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[pi-system-theme] Failed to read ${GLOBAL_CONFIG_PATH}: ${message}`);
+        return config;
+    }
+}
+
+async function saveConfig(config: Config): Promise<{ wroteFile: boolean; overrideCount: number }> {
     const overrides = getOverrides(config);
     const overrideCount = Object.keys(overrides).length;
 
     if (overrideCount === 0) {
         await rm(GLOBAL_CONFIG_PATH, { force: true });
-        return { wroteFile: false, overrideCount };
+        return {
+            wroteFile: false,
+            overrideCount,
+        };
     }
 
     await mkdir(path.dirname(GLOBAL_CONFIG_PATH), { recursive: true });
     await writeFile(GLOBAL_CONFIG_PATH, `${JSON.stringify(overrides, null, 4)}\n`, "utf8");
 
-    return { wroteFile: true, overrideCount };
+    return {
+        wroteFile: true,
+        overrideCount,
+    };
 }
 
 function extractStderr(error: unknown): string {
-    if (typeof error !== "object" || error === null) return "";
+    if (!error || typeof error !== "object") {
+        return "";
+    }
 
-    const maybeStderr = (error as { stderr?: unknown }).stderr;
-    return typeof maybeStderr === "string" ? maybeStderr : "";
+    const stderr = (error as { stderr?: unknown }).stderr;
+    return typeof stderr === "string" ? stderr : "";
 }
 
-async function detectAppearance(): Promise<Appearance> {
+async function detectAppearance(): Promise<Appearance | null> {
     try {
         const { stdout } = await execFileAsync("/usr/bin/defaults", ["read", "-g", "AppleInterfaceStyle"], {
             timeout: DETECTION_TIMEOUT_MS,
@@ -142,153 +130,96 @@ async function detectAppearance(): Promise<Appearance> {
         });
 
         const normalized = stdout.trim().toLowerCase();
-        if (normalized === "dark") return "dark";
-        if (normalized === "light") return "light";
+        if (normalized === "dark") {
+            return "dark";
+        }
 
-        return "unknown";
+        if (normalized === "light") {
+            return "light";
+        }
+
+        return null;
     } catch (error) {
         const stderr = extractStderr(error).toLowerCase();
         if (stderr.includes("does not exist")) {
             return "light";
         }
 
-        return "unknown";
+        return null;
     }
 }
 
-function getRequestedTheme(config: Config, appearance: Exclude<Appearance, "unknown">): string {
-    return appearance === "dark" ? config.darkTheme : config.lightTheme;
-}
-
-function getBuiltinFallbackTheme(appearance: Exclude<Appearance, "unknown">): string {
-    return appearance === "dark" ? "dark" : "light";
-}
-
-function resolveThemeName(
-    ctx: ExtensionContext,
-    requestedTheme: string,
-    fallbackTheme: string,
-    warnedMissingThemes: Set<string>,
-): string {
-    if (ctx.ui.getTheme(requestedTheme)) {
-        return requestedTheme;
-    }
-
-    const warningKey = `${requestedTheme}=>${fallbackTheme}`;
-    if (!warnedMissingThemes.has(warningKey)) {
-        warnedMissingThemes.add(warningKey);
-        console.warn(
-            `[pi-system-theme] Theme "${requestedTheme}" is not available. Falling back to "${fallbackTheme}".`,
-        );
-    }
-
-    if (ctx.ui.getTheme(fallbackTheme)) {
-        return fallbackTheme;
-    }
-
-    return requestedTheme;
-}
-
-function warnSetThemeFailureOnce(
-    warningKey: string,
-    warnings: Set<string>,
-    themeName: string,
-    errorMessage: string,
-): void {
-    if (warnings.has(warningKey)) return;
-
-    warnings.add(warningKey);
-    console.warn(`[pi-system-theme] Failed to set theme "${themeName}": ${errorMessage}`);
-}
-
-async function promptStringSetting(
+async function promptTheme(
     ctx: ExtensionCommandContext,
     label: string,
     currentValue: string,
 ): Promise<string | undefined> {
-    const value = await ctx.ui.input(`${label} (current: ${currentValue})`, currentValue);
-    if (value === undefined) return undefined;
+    const next = await ctx.ui.input(label, currentValue);
+    if (next === undefined) {
+        return undefined;
+    }
 
-    const trimmed = value.trim();
+    const trimmed = next.trim();
     return trimmed.length > 0 ? trimmed : currentValue;
 }
 
-async function promptIntegerSetting(
-    ctx: ExtensionCommandContext,
-    label: string,
-    currentValue: number,
-    minimum: number,
-): Promise<number | undefined> {
+async function promptPollMs(ctx: ExtensionCommandContext, currentValue: number): Promise<number | undefined> {
     while (true) {
-        const value = await ctx.ui.input(`${label} (current: ${currentValue})`, String(currentValue));
-        if (value === undefined) return undefined;
+        const next = await ctx.ui.input("Poll interval (ms)", String(currentValue));
+        if (next === undefined) {
+            return undefined;
+        }
 
-        const trimmed = value.trim();
-        if (trimmed.length === 0) return currentValue;
+        const trimmed = next.trim();
+        if (trimmed.length === 0) {
+            return currentValue;
+        }
 
         const parsed = Number.parseInt(trimmed, 10);
-        if (Number.isFinite(parsed) && parsed >= minimum) {
+        if (Number.isFinite(parsed) && parsed >= MIN_POLL_MS) {
             return parsed;
         }
 
-        ctx.ui.notify(`Enter a whole number >= ${minimum}, or leave blank to keep current value.`, "warning");
+        ctx.ui.notify(`Enter a whole number >= ${MIN_POLL_MS}.`, "warning");
     }
 }
 
 export default function systemThemeExtension(pi: ExtensionAPI): void {
+    let activeConfig: Config = { ...DEFAULT_CONFIG };
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let syncInProgress = false;
-    let lastAppliedThemeName: string | undefined;
-    let activeConfig: Config = DEFAULT_CONFIG;
-
-    const missingThemeWarnings = new Set<string>();
-    const setThemeWarnings = new Set<string>();
+    let lastSetThemeError: string | null = null;
 
     async function syncTheme(ctx: ExtensionContext): Promise<void> {
-        if (syncInProgress) return;
+        if (syncInProgress) {
+            return;
+        }
+
         syncInProgress = true;
 
         try {
             const appearance = await detectAppearance();
-            if (appearance === "unknown") return;
-
-            const requestedTheme = getRequestedTheme(activeConfig, appearance);
-            const fallbackTheme = getBuiltinFallbackTheme(appearance);
-            const targetTheme = resolveThemeName(ctx, requestedTheme, fallbackTheme, missingThemeWarnings);
-
-            const activeThemeName = ctx.ui.theme.name ?? lastAppliedThemeName;
-            if (activeThemeName === targetTheme) {
-                lastAppliedThemeName = activeThemeName;
+            if (!appearance) {
                 return;
             }
 
-            const setResult = ctx.ui.setTheme(targetTheme);
-            if (setResult.success) {
-                lastAppliedThemeName = targetTheme;
+            const targetTheme = appearance === "dark" ? activeConfig.darkTheme : activeConfig.lightTheme;
+            if (ctx.ui.theme.name === targetTheme) {
                 return;
             }
 
-            warnSetThemeFailureOnce(
-                `set:${targetTheme}`,
-                setThemeWarnings,
-                targetTheme,
-                setResult.error ?? "unknown error",
-            );
-
-            if (targetTheme === fallbackTheme) return;
-
-            const fallbackResult = ctx.ui.setTheme(fallbackTheme);
-            if (fallbackResult.success) {
-                lastAppliedThemeName = fallbackTheme;
+            const result = ctx.ui.setTheme(targetTheme);
+            if (result.success) {
+                lastSetThemeError = null;
                 return;
             }
 
-            warnSetThemeFailureOnce(
-                `fallback:${fallbackTheme}`,
-                setThemeWarnings,
-                fallbackTheme,
-                fallbackResult.error ?? "unknown error",
-            );
+            const message = result.error ?? "unknown error";
+            const errorKey = `${targetTheme}:${message}`;
+            if (errorKey !== lastSetThemeError) {
+                lastSetThemeError = errorKey;
+                console.warn(`[pi-system-theme] Failed to set theme "${targetTheme}": ${message}`);
+            }
         } finally {
             syncInProgress = false;
         }
@@ -305,58 +236,99 @@ export default function systemThemeExtension(pi: ExtensionAPI): void {
     }
 
     pi.registerCommand("system-theme", {
-        description: "Configure global pi-system-theme settings",
+        description: "Configure pi-system-theme",
         handler: async (_args, ctx) => {
             if (process.platform !== "darwin") {
                 ctx.ui.notify("pi-system-theme currently supports macOS only.", "info");
                 return;
             }
 
-            const darkTheme = await promptStringSetting(ctx, "Dark theme", activeConfig.darkTheme);
-            if (darkTheme === undefined) return;
+            const draft: Config = { ...activeConfig };
 
-            const lightTheme = await promptStringSetting(ctx, "Light theme", activeConfig.lightTheme);
-            if (lightTheme === undefined) return;
+            while (true) {
+                const darkOption = `Dark theme: ${draft.darkTheme}`;
+                const lightOption = `Light theme: ${draft.lightTheme}`;
+                const pollOption = `Poll interval (ms): ${draft.pollMs}`;
+                const saveOption = "Save and apply";
+                const cancelOption = "Cancel";
 
-            const pollMs = await promptIntegerSetting(ctx, "Poll interval (ms)", activeConfig.pollMs, MIN_POLL_MS);
-            if (pollMs === undefined) return;
+                const choice = await ctx.ui.select("pi-system-theme", [
+                    darkOption,
+                    lightOption,
+                    pollOption,
+                    saveOption,
+                    cancelOption,
+                ]);
 
-            activeConfig = mergeConfig(DEFAULT_CONFIG, {
-                darkTheme,
-                lightTheme,
-                pollMs,
-            });
-
-            try {
-                const result = await writeGlobalOverrides(activeConfig);
-                if (result.wroteFile) {
-                    ctx.ui.notify(`Saved ${result.overrideCount} override(s) to ${GLOBAL_CONFIG_PATH}.`, "info");
-                } else {
-                    ctx.ui.notify("No overrides left. Removed global config file; defaults are active.", "info");
+                if (choice === undefined || choice === cancelOption) {
+                    return;
                 }
-            } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                ctx.ui.notify(`Failed to save config: ${message}`, "error");
-                return;
-            }
 
-            await syncTheme(ctx);
-            restartPolling(ctx);
+                if (choice === darkOption) {
+                    const next = await promptTheme(ctx, "Dark theme", draft.darkTheme);
+                    if (next !== undefined) {
+                        draft.darkTheme = next;
+                    }
+                    continue;
+                }
+
+                if (choice === lightOption) {
+                    const next = await promptTheme(ctx, "Light theme", draft.lightTheme);
+                    if (next !== undefined) {
+                        draft.lightTheme = next;
+                    }
+                    continue;
+                }
+
+                if (choice === pollOption) {
+                    const next = await promptPollMs(ctx, draft.pollMs);
+                    if (next !== undefined) {
+                        draft.pollMs = next;
+                    }
+                    continue;
+                }
+
+                if (choice === saveOption) {
+                    activeConfig = draft;
+
+                    try {
+                        const result = await saveConfig(activeConfig);
+                        if (result.wroteFile) {
+                            ctx.ui.notify(
+                                `Saved ${result.overrideCount} override(s) to ${GLOBAL_CONFIG_PATH}.`,
+                                "info",
+                            );
+                        } else {
+                            ctx.ui.notify("No overrides left. Using defaults.", "info");
+                        }
+                    } catch (error) {
+                        const message = error instanceof Error ? error.message : String(error);
+                        ctx.ui.notify(`Failed to save config: ${message}`, "error");
+                        return;
+                    }
+
+                    await syncTheme(ctx);
+                    restartPolling(ctx);
+                    return;
+                }
+            }
         },
     });
 
     pi.on("session_start", async (_event, ctx) => {
-        if (process.platform !== "darwin") return;
+        if (process.platform !== "darwin") {
+            return;
+        }
 
         activeConfig = await loadConfig();
-        lastAppliedThemeName = ctx.ui.theme.name;
-
         await syncTheme(ctx);
         restartPolling(ctx);
     });
 
     pi.on("session_shutdown", () => {
-        if (!intervalId) return;
+        if (!intervalId) {
+            return;
+        }
 
         clearInterval(intervalId);
         intervalId = null;
