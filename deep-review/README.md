@@ -43,7 +43,7 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 - Reasoning effort: `xhigh`
 - Summary: `auto`
 - Verbosity: `medium`
-- Context-pack budget: `272000`
+- Context-pack budget target: `272000`
 - Base ref: auto-detected (`origin/main`, `origin/master`, `main`, `master`, `HEAD~1`)
 
 ## Options
@@ -69,6 +69,22 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 /deep-review "find bugs and regressions"
 ```
 
+## Architecture (high level)
+
+```mermaid
+flowchart LR
+    A[/deep-review/] --> B[Context pack stage]
+    B --> C[Git diff + changed files]
+    B --> D[Scribe recall]
+    B --> E[Deterministic rank + budget fit]
+    E --> F[Pack + manifests + report.json]
+    F --> G[Responses API review]
+    G --> H[Final markdown + handoff artifacts]
+```
+
+Detailed maintainer architecture and decision log:
+`extensions/deep-review/ARCH.md`
+
 ## Context-pack artifacts
 
 Generated pack output includes:
@@ -87,10 +103,11 @@ Generated pack output includes:
 - If `--context-pack <path>` is provided, generation is skipped.
 - Context packing is deterministic and executed directly in the extension (no nested `pi -p` skill hop).
 - Related-file omissions are explicitly reported with reasons.
+- Context-pack generation applies request headroom reserve internally (query + protocol overhead), so effective pack budget can be lower than the configured target.
 - Related candidates that are already in changed files are de-duplicated from related omission stats/manifests.
 - Related test/test-data files are only eligible when close to changed modules (shared path affinity or short graph distance).
 - `--debug` writes context-pack + responses debug artifacts to a temp directory.
-- Maintainer internals and decision log: `extensions/deep-review/CONTEXT_PACK_INTERNALS.md`.
+- Maintainer internals and decision log: `extensions/deep-review/ARCH.md`.
 - Streamed reasoning/answer text is not shown live in widget text; full markdown is posted at completion.
 - Final answer/thinking/report files are written to a temp handoff directory and linked in output.
 - The extension attempts to copy the final answer to clipboard automatically.
