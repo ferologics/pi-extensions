@@ -122,23 +122,81 @@ function extractStderr(error: unknown): string {
     return typeof stderr === "string" ? stderr : "";
 }
 
-async function detectAppearance(): Promise<Appearance | null> {
+function normalizeSettingValue(value: string): string {
+    const trimmed = value.trim().toLowerCase();
+
+    if ((trimmed.startsWith("'") && trimmed.endsWith("'")) || (trimmed.startsWith('"') && trimmed.endsWith('"'))) {
+        return trimmed.slice(1, -1);
+    }
+
+    return trimmed;
+}
+
+function isSupportedPlatform(): boolean {
+    return process.platform === "darwin" || process.platform === "linux";
+}
+
+function parseMacAppearance(value: string): Appearance | null {
+    if (value === "dark") {
+        return "dark";
+    }
+
+    if (value === "light") {
+        return "light";
+    }
+
+    return null;
+}
+
+function parseGnomeColorScheme(value: string | null): Appearance | null {
+    if (value === "prefer-dark") {
+        return "dark";
+    }
+
+    if (value === "prefer-light") {
+        return "light";
+    }
+
+    return null;
+}
+
+function parseGtkThemeAppearance(value: string | null): Appearance | null {
+    if (!value) {
+        return null;
+    }
+
+    if (value.includes("dark")) {
+        return "dark";
+    }
+
+    if (value.includes("light")) {
+        return "light";
+    }
+
+    return null;
+}
+
+async function readGnomeInterfaceSetting(key: string): Promise<string | null> {
+    try {
+        const { stdout } = await execFileAsync("gsettings", ["get", "org.gnome.desktop.interface", key], {
+            timeout: DETECTION_TIMEOUT_MS,
+            windowsHide: true,
+        });
+
+        return normalizeSettingValue(stdout);
+    } catch {
+        return null;
+    }
+}
+
+async function detectMacAppearance(): Promise<Appearance | null> {
     try {
         const { stdout } = await execFileAsync("/usr/bin/defaults", ["read", "-g", "AppleInterfaceStyle"], {
             timeout: DETECTION_TIMEOUT_MS,
             windowsHide: true,
         });
 
-        const normalized = stdout.trim().toLowerCase();
-        if (normalized === "dark") {
-            return "dark";
-        }
-
-        if (normalized === "light") {
-            return "light";
-        }
-
-        return null;
+        return parseMacAppearance(normalizeSettingValue(stdout));
     } catch (error) {
         const stderr = extractStderr(error).toLowerCase();
         if (stderr.includes("does not exist")) {
@@ -146,6 +204,26 @@ async function detectAppearance(): Promise<Appearance | null> {
         }
 
         return null;
+    }
+}
+
+async function detectLinuxAppearance(): Promise<Appearance | null> {
+    const fromColorScheme = parseGnomeColorScheme(await readGnomeInterfaceSetting("color-scheme"));
+    if (fromColorScheme) {
+        return fromColorScheme;
+    }
+
+    return parseGtkThemeAppearance(await readGnomeInterfaceSetting("gtk-theme"));
+}
+
+async function detectAppearance(): Promise<Appearance | null> {
+    switch (process.platform) {
+        case "darwin":
+            return detectMacAppearance();
+        case "linux":
+            return detectLinuxAppearance();
+        default:
+            return null;
     }
 }
 
@@ -190,6 +268,14 @@ function canManageThemes(ctx: ExtensionContext): boolean {
     }
 
     return ctx.ui.getAllThemes().length > 0;
+}
+
+function notifyInfoIfUI(ctx: ExtensionContext, message: string): void {
+    if (!ctx.hasUI) {
+        return;
+    }
+
+    ctx.ui.notify(message, "info");
 }
 
 function hasThemeOverrides(config: Config): boolean {
@@ -291,17 +377,13 @@ export default function systemThemeExtension(pi: ExtensionAPI): void {
     pi.registerCommand("system-theme", {
         description: "Configure pi-system-theme",
         handler: async (_args, ctx) => {
-            if (process.platform !== "darwin") {
-                if (ctx.hasUI) {
-                    ctx.ui.notify("pi-system-theme currently supports macOS only.", "info");
-                }
+            if (!isSupportedPlatform()) {
+                notifyInfoIfUI(ctx, "pi-system-theme currently supports macOS and Linux (GNOME gsettings).");
                 return;
             }
 
             if (!canManageThemes(ctx)) {
-                if (ctx.hasUI) {
-                    ctx.ui.notify("pi-system-theme settings require interactive theme support.", "info");
-                }
+                notifyInfoIfUI(ctx, "pi-system-theme settings require interactive theme support.");
                 return;
             }
 
@@ -379,7 +461,7 @@ export default function systemThemeExtension(pi: ExtensionAPI): void {
     });
 
     pi.on("session_start", async (_event, ctx) => {
-        if (process.platform !== "darwin") {
+        if (!isSupportedPlatform()) {
             return;
         }
 
