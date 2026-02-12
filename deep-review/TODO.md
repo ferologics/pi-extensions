@@ -49,6 +49,7 @@ Goal: remove runtime dependency on external `@sibyllinesoft/scribe` CLI and own 
 - [ ] Add ranking risk overlay (`fanout`, `test-coverage`, `signature-change`, `recent-churn`) while keeping omission explainability.
 - [ ] Emit structured artifacts consumed directly by `context-pack/index.ts` (remove XML scraping glue).
 - [ ] Add parity benchmark suite vs current Scribe-backed pipeline across at least 2 repo shapes (quality + runtime + token fit) before default switch.
+- [ ] Build a regression corpus from real deep-review misses and lock expected keep/omit outputs for the new recall engine.
 - [ ] Keep temporary fallback flag to external Scribe during rollout; remove fallback once parity gate is met.
 
 ### Exit criteria
