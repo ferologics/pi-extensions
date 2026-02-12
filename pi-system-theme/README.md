@@ -52,6 +52,7 @@ Choose **Save and apply** to persist overrides and apply immediately.
 ## Notes
 
 - This extension currently only acts on macOS (`process.platform === "darwin"`).
+- In headless modes without theme support (for example `-p` print mode), the extension stays idle.
 - If a configured theme name does not exist, Pi keeps the current theme and logs a warning.
 
 ## Install

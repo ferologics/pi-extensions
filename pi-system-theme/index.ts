@@ -184,6 +184,14 @@ async function promptPollMs(ctx: ExtensionCommandContext, currentValue: number):
     }
 }
 
+function canManageThemes(ctx: ExtensionContext): boolean {
+    if (!ctx.hasUI) {
+        return false;
+    }
+
+    return ctx.ui.getAllThemes().length > 0;
+}
+
 export default function systemThemeExtension(pi: ExtensionAPI): void {
     let activeConfig: Config = { ...DEFAULT_CONFIG };
     let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -191,7 +199,7 @@ export default function systemThemeExtension(pi: ExtensionAPI): void {
     let lastSetThemeError: string | null = null;
 
     async function syncTheme(ctx: ExtensionContext): Promise<void> {
-        if (syncInProgress) {
+        if (!canManageThemes(ctx) || syncInProgress) {
             return;
         }
 
@@ -228,6 +236,11 @@ export default function systemThemeExtension(pi: ExtensionAPI): void {
     function restartPolling(ctx: ExtensionContext): void {
         if (intervalId) {
             clearInterval(intervalId);
+            intervalId = null;
+        }
+
+        if (!canManageThemes(ctx)) {
+            return;
         }
 
         intervalId = setInterval(() => {
@@ -239,7 +252,16 @@ export default function systemThemeExtension(pi: ExtensionAPI): void {
         description: "Configure pi-system-theme",
         handler: async (_args, ctx) => {
             if (process.platform !== "darwin") {
-                ctx.ui.notify("pi-system-theme currently supports macOS only.", "info");
+                if (ctx.hasUI) {
+                    ctx.ui.notify("pi-system-theme currently supports macOS only.", "info");
+                }
+                return;
+            }
+
+            if (!canManageThemes(ctx)) {
+                if (ctx.hasUI) {
+                    ctx.ui.notify("pi-system-theme settings require interactive theme support.", "info");
+                }
                 return;
             }
 
@@ -316,7 +338,7 @@ export default function systemThemeExtension(pi: ExtensionAPI): void {
     });
 
     pi.on("session_start", async (_event, ctx) => {
-        if (process.platform !== "darwin") {
+        if (process.platform !== "darwin" || !canManageThemes(ctx)) {
             return;
         }
 
