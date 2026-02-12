@@ -1,6 +1,6 @@
 {
     "name": "@ferologics/pi-extensions",
-    "version": "0.2.3",
+    "version": "0.3.0",
     "description": "Custom Pi extensions bundle (deep-review, pi-notify, pi-system-theme, plan-mode)",
     "type": "module",
     "keywords": [
