@@ -1,6 +1,6 @@
 # pi-system-theme
 
-A Pi extension that syncs Pi's theme with system appearance (dark/light mode) on macOS and Linux.
+A Pi extension that syncs Pi's theme with system appearance (dark/light mode) on macOS, Linux, and Windows.
 
 ## Behavior
 
@@ -16,6 +16,9 @@ Detection backends:
 # Linux (GNOME-compatible)
 gsettings get org.gnome.desktop.interface color-scheme
 # fallback: gsettings get org.gnome.desktop.interface gtk-theme
+
+# Windows
+reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" /v AppsUseLightTheme
 ```
 
 If detection fails or returns an unknown value, the extension keeps the current Pi theme unchanged.
@@ -57,8 +60,9 @@ Choose **Save and apply** to persist overrides and apply immediately.
 
 ## Notes
 
-- This extension acts on macOS and Linux (`process.platform === "darwin" || process.platform === "linux"`).
+- This extension acts on macOS, Linux, and Windows (`darwin`, `linux`, `win32`).
 - Linux support currently depends on GNOME-compatible `gsettings` keys (`color-scheme`, with `gtk-theme` fallback).
+- Windows support reads `AppsUseLightTheme` from `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`.
 - In headless modes without theme support (for example `-p` print mode), the extension stays idle.
 - If your current theme is custom and `darkTheme`/`lightTheme` are still default (`dark`/`light`), the extension does nothing to avoid overriding your setup. Configure `/system-theme` to opt into syncing.
 - If a configured theme name does not exist, Pi keeps the current theme and logs a warning.

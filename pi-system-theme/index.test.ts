@@ -47,6 +47,10 @@ function getGSettingsKey(args: string[]): string {
     return args[2] ?? "";
 }
 
+function getRegistryValueName(args: string[]): string {
+    return args[3] ?? "";
+}
+
 function getConfigPath(): string {
     return path.join(testHome, ".pi", "agent", "system-theme.json");
 }
@@ -272,6 +276,67 @@ describe("pi-system-theme", () => {
 
         expect(execFileAsyncMock).toHaveBeenCalledTimes(2);
         expect(setThemeMock).toHaveBeenCalledWith("dark");
+    });
+
+    it("detects Windows dark appearance from AppsUseLightTheme=0x0", async () => {
+        setPlatform("win32");
+
+        execFileAsyncMock.mockImplementation(async (file, args) => {
+            if (file !== "reg") {
+                throw new Error(`Unexpected command: ${file}`);
+            }
+
+            const valueName = getRegistryValueName(args);
+            if (valueName !== "AppsUseLightTheme") {
+                throw new Error(`Unexpected registry value name: ${valueName}`);
+            }
+
+            return {
+                stdout: "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\n    AppsUseLightTheme    REG_DWORD    0x0\n",
+            };
+        });
+
+        const { sessionStart } = await createExtensionRuntime();
+        const { ctx, setThemeMock } = createContext({ themeName: "light" });
+
+        await sessionStart({}, ctx);
+
+        expect(setThemeMock).toHaveBeenCalledWith("dark");
+        expect(execFileAsyncMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("detects Windows light appearance from AppsUseLightTheme=0x1", async () => {
+        setPlatform("win32");
+
+        execFileAsyncMock.mockImplementation(async (file) => {
+            if (file !== "reg") {
+                throw new Error(`Unexpected command: ${file}`);
+            }
+
+            return {
+                stdout: "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\n    AppsUseLightTheme    REG_DWORD    0x1\n",
+            };
+        });
+
+        const { sessionStart } = await createExtensionRuntime();
+        const { ctx, setThemeMock } = createContext({ themeName: "dark" });
+
+        await sessionStart({}, ctx);
+
+        expect(setThemeMock).toHaveBeenCalledWith("light");
+    });
+
+    it("does not change theme when Windows registry query fails", async () => {
+        setPlatform("win32");
+
+        execFileAsyncMock.mockRejectedValue(new Error("reg query failed"));
+
+        const { sessionStart } = await createExtensionRuntime();
+        const { ctx, setThemeMock } = createContext({ themeName: "dark" });
+
+        await sessionStart({}, ctx);
+
+        expect(setThemeMock).not.toHaveBeenCalled();
     });
 
     it("treats missing AppleInterfaceStyle as light mode on macOS", async () => {

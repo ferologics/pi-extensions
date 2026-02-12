@@ -133,7 +133,7 @@ function normalizeSettingValue(value: string): string {
 }
 
 function isSupportedPlatform(): boolean {
-    return process.platform === "darwin" || process.platform === "linux";
+    return process.platform === "darwin" || process.platform === "linux" || process.platform === "win32";
 }
 
 function parseMacAppearance(value: string): Appearance | null {
@@ -170,6 +170,32 @@ function parseGtkThemeAppearance(value: string | null): Appearance | null {
     }
 
     if (value.includes("light")) {
+        return "light";
+    }
+
+    return null;
+}
+
+function parseWindowsAppsUseLightThemeValue(registryOutput: string): Appearance | null {
+    const match = registryOutput.match(/AppsUseLightTheme\s+REG_DWORD\s+(\S+)/i);
+    if (!match) {
+        return null;
+    }
+
+    const rawValue = match[1] ?? "";
+
+    let parsedValue: number;
+    if (rawValue.toLowerCase().startsWith("0x")) {
+        parsedValue = Number.parseInt(rawValue.slice(2), 16);
+    } else {
+        parsedValue = Number.parseInt(rawValue, 10);
+    }
+
+    if (parsedValue === 0) {
+        return "dark";
+    }
+
+    if (parsedValue === 1) {
         return "light";
     }
 
@@ -216,12 +242,36 @@ async function detectLinuxAppearance(): Promise<Appearance | null> {
     return parseGtkThemeAppearance(await readGnomeInterfaceSetting("gtk-theme"));
 }
 
+async function detectWindowsAppearance(): Promise<Appearance | null> {
+    try {
+        const { stdout } = await execFileAsync(
+            "reg",
+            [
+                "query",
+                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                "/v",
+                "AppsUseLightTheme",
+            ],
+            {
+                timeout: DETECTION_TIMEOUT_MS,
+                windowsHide: true,
+            },
+        );
+
+        return parseWindowsAppsUseLightThemeValue(stdout);
+    } catch {
+        return null;
+    }
+}
+
 async function detectAppearance(): Promise<Appearance | null> {
     switch (process.platform) {
         case "darwin":
             return detectMacAppearance();
         case "linux":
             return detectLinuxAppearance();
+        case "win32":
+            return detectWindowsAppearance();
         default:
             return null;
     }
@@ -378,7 +428,7 @@ export default function systemThemeExtension(pi: ExtensionAPI): void {
         description: "Configure pi-system-theme",
         handler: async (_args, ctx) => {
             if (!isSupportedPlatform()) {
-                notifyInfoIfUI(ctx, "pi-system-theme currently supports macOS and Linux (GNOME gsettings).");
+                notifyInfoIfUI(ctx, "pi-system-theme currently supports macOS, Linux (GNOME gsettings), and Windows.");
                 return;
             }
 
