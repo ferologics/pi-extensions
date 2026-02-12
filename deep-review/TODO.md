@@ -28,6 +28,36 @@ Reference: `extensions/deep-review/ARCH.md`
 - [ ] Explore optional interactive omission arbitration loop (user chooses what to keep/drop under budget pressure)
 - [ ] Explore optional advisory scoring pass (non-authoritative) for difficult tie-breaks
 
+## Replace external Scribe with internal minimal recall engine
+
+Goal: remove runtime dependency on external `@sibyllinesoft/scribe` CLI and own only the recall logic we actually need for deep-review.
+
+### Research conclusions (2026-02-12)
+
+- Keep: diff-seeded dependency closure, include-dependents option, distance/reason metadata, deterministic ordering, explicit omission reasons.
+- Lift from CodeMapper: two-stage retrieval (text prefilter -> AST validation), incremental cache (size/mtime prefilter + hash confirm), impact/test-risk signals (callers/tests/untested), signature-change risk cues.
+- Drop: agent install hooks, bundle/web/editor outputs, output-style surface area, webservice/npm packaging, generic repo bundling.
+- Licensing note: CodeMapper repository currently has no explicit license file; reimplement ideas, do not copy code verbatim.
+
+### TODO
+
+- [ ] Create a small Rust crate (working name: `deep-review-recall`) with stable machine-readable output for context-pack.
+- [ ] Implement graph build + closure from changed files in one pass (dependencies + optional dependents + depth cap), replacing per-target CLI fan-out.
+- [ ] Implement language scope intentionally (Rust + TS/JS first; Python optional later), with deterministic import path resolution.
+- [ ] Add fast mode for large repos: ripgrep/text prefilter first, syntax/AST validation second.
+- [ ] Add incremental cache + invalidation with deterministic metadata updates.
+- [ ] Add ranking risk overlay (`fanout`, `test-coverage`, `signature-change`, `recent-churn`) while keeping omission explainability.
+- [ ] Emit structured artifacts consumed directly by `context-pack/index.ts` (remove XML scraping glue).
+- [ ] Add parity benchmark suite vs current Scribe-backed pipeline across at least 2 repo shapes (quality + runtime + token fit) before default switch.
+- [ ] Keep temporary fallback flag to external Scribe during rollout; remove fallback once parity gate is met.
+
+### Exit criteria
+
+- [ ] `/deep-review` runs without external Scribe dependency.
+- [ ] Recall quality is equal or better on regression corpus.
+- [ ] Runtime improves and variance drops on large repos.
+- [ ] Report/manifests preserve deterministic and auditable omission reasons.
+
 ---
 
 ## Context-pack rewrite status (historical)
