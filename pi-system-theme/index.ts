@@ -192,14 +192,54 @@ function canManageThemes(ctx: ExtensionContext): boolean {
     return ctx.ui.getAllThemes().length > 0;
 }
 
+function hasThemeOverrides(config: Config): boolean {
+    return config.darkTheme !== DEFAULT_CONFIG.darkTheme || config.lightTheme !== DEFAULT_CONFIG.lightTheme;
+}
+
+function isDefaultThemeName(themeName: string | undefined): boolean {
+    return themeName === DEFAULT_CONFIG.darkTheme || themeName === DEFAULT_CONFIG.lightTheme;
+}
+
+function shouldAutoSync(ctx: ExtensionContext, config: Config): boolean {
+    if (!canManageThemes(ctx)) {
+        return false;
+    }
+
+    if (hasThemeOverrides(config)) {
+        return true;
+    }
+
+    return isDefaultThemeName(ctx.ui.theme.name);
+}
+
 export default function systemThemeExtension(pi: ExtensionAPI): void {
     let activeConfig: Config = { ...DEFAULT_CONFIG };
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let syncInProgress = false;
     let lastSetThemeError: string | null = null;
+    let didWarnDefaultThemeFallback = false;
+
+    function maybeNotifyDefaultThemeFallback(ctx: ExtensionContext): void {
+        if (didWarnDefaultThemeFallback || !canManageThemes(ctx) || hasThemeOverrides(activeConfig)) {
+            return;
+        }
+
+        const currentTheme = ctx.ui.theme.name;
+        if (isDefaultThemeName(currentTheme)) {
+            return;
+        }
+
+        const displayTheme = currentTheme ?? "unknown";
+
+        didWarnDefaultThemeFallback = true;
+        ctx.ui.notify(
+            `Current theme "${displayTheme}" is custom. Skipping default dark/light auto-sync. Configure /system-theme to enable syncing.`,
+            "info",
+        );
+    }
 
     async function syncTheme(ctx: ExtensionContext): Promise<void> {
-        if (!canManageThemes(ctx) || syncInProgress) {
+        if (!shouldAutoSync(ctx, activeConfig) || syncInProgress) {
             return;
         }
 
@@ -239,7 +279,7 @@ export default function systemThemeExtension(pi: ExtensionAPI): void {
             intervalId = null;
         }
 
-        if (!canManageThemes(ctx)) {
+        if (!shouldAutoSync(ctx, activeConfig)) {
             return;
         }
 
@@ -331,6 +371,7 @@ export default function systemThemeExtension(pi: ExtensionAPI): void {
 
                     await syncTheme(ctx);
                     restartPolling(ctx);
+                    maybeNotifyDefaultThemeFallback(ctx);
                     return;
                 }
             }
@@ -338,11 +379,17 @@ export default function systemThemeExtension(pi: ExtensionAPI): void {
     });
 
     pi.on("session_start", async (_event, ctx) => {
-        if (process.platform !== "darwin" || !canManageThemes(ctx)) {
+        if (process.platform !== "darwin") {
             return;
         }
 
         activeConfig = await loadConfig();
+
+        if (!shouldAutoSync(ctx, activeConfig)) {
+            maybeNotifyDefaultThemeFallback(ctx);
+            return;
+        }
+
         await syncTheme(ctx);
         restartPolling(ctx);
     });

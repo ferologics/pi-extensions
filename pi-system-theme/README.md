@@ -53,6 +53,7 @@ Choose **Save and apply** to persist overrides and apply immediately.
 
 - This extension currently only acts on macOS (`process.platform === "darwin"`).
 - In headless modes without theme support (for example `-p` print mode), the extension stays idle.
+- If your current theme is custom and `darkTheme`/`lightTheme` are still default (`dark`/`light`), the extension does nothing to avoid overriding your setup. Configure `/system-theme` to opt into syncing.
 - If a configured theme name does not exist, Pi keeps the current theme and logs a warning.
 
 ## Install
