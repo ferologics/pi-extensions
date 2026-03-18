@@ -32,6 +32,12 @@ Exact `provider/model` entries win over bare model ids.
 - `openai-codex-responses`
 - `azure-openai-responses`
 
+## Anthropic / Claude
+
+This extension is intentionally OpenAI-only.
+
+Anthropic does not currently expose a direct equivalent to OpenAI `text.verbosity`. Claude's `output_config.effort` is a separate effort/thoroughness control, not a drop-in verbosity setting, so this extension does not map verbosity onto Anthropic models.
+
 ## Shortcut
 
 - macOS: `Alt+V`
