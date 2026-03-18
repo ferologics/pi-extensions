@@ -2,6 +2,20 @@
 
 Apply per-model OpenAI `text.verbosity` overrides and cycle the current model's setting from the keyboard.
 
+## Install
+
+```bash
+pi install npm:pi-verbosity-control
+```
+
+Or via git:
+
+```bash
+pi install git:github.com/ferologics/pi-verbosity-control
+```
+
+Restart Pi or use `/reload` if you are developing locally.
+
 ## What it does
 
 - Reads global config from `~/.pi/agent/verbosity.json`

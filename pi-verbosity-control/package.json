@@ -1,0 +1,32 @@
+{
+    "name": "pi-verbosity-control",
+    "version": "0.1.0",
+    "description": "Per-model OpenAI verbosity control for Pi with inline footer display",
+    "keywords": [
+        "pi-package",
+        "pi",
+        "pi-coding-agent",
+        "openai",
+        "verbosity"
+    ],
+    "author": "ferologics",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ferologics/pi-verbosity-control.git"
+    },
+    "homepage": "https://github.com/ferologics/pi-verbosity-control#readme",
+    "bugs": {
+        "url": "https://github.com/ferologics/pi-verbosity-control/issues"
+    },
+    "pi": {
+        "extensions": [
+            "index.ts"
+        ]
+    },
+    "piRelease": {
+        "repo": "ferologics/pi-verbosity-control",
+        "branch": "main",
+        "subtreePublishRecipe": "publish-pi-verbosity-control"
+    }
+}

@@ -55,7 +55,9 @@ Extensions import from pi's packages. The `tsconfig.json` maps these:
 
 - Extension-specific backlog lives next to each extension:
   - `deep-review/TODO.md`
+  - `pi-system-theme/TODO.md`
   - `plan-mode/TODO.md`
+  - `pi-verbosity-control/TODO.md`
 - `extensions/TODO.md` is an index/shared file, not a place for one extension's full backlog.
 - Package-level integration backlog belongs in repo-root `../TODO.md`.
 - When developing in upstream `~/dev/pi-extensions`, keep the same TODO files aligned there.
