@@ -21,6 +21,18 @@ let parseOptions: (
     rawArgs: string,
     cwd: string,
 ) => { ok: boolean; message?: string; options?: { contextPackBudget?: number; contextPackPath?: string } };
+let buildContextPackBudgetPlan: (
+    options: { query: string; model: string; contextPackBudget?: number },
+    model?: any,
+) => {
+    source: "manual" | "model-auto" | "default";
+    requestedBudget: number;
+    finalBudget: number;
+    inputFraction?: number;
+    modelContextWindow?: number;
+    modelHardInputBudget?: number;
+    modelRatioInputBudget?: number;
+};
 let extractContextPackPath: (output: string) => Promise<string | undefined>;
 let normalizeSectionLikeBoldMarkdown: (markdown: string) => string;
 let parseSseStream: (
@@ -31,6 +43,7 @@ beforeAll(async () => {
     const mod = await import("./index.js");
     splitArgs = mod.splitArgs;
     parseOptions = mod.parseOptions;
+    buildContextPackBudgetPlan = mod.buildContextPackBudgetPlan;
     extractContextPackPath = mod.extractContextPackPath;
     normalizeSectionLikeBoldMarkdown = mod.normalizeSectionLikeBoldMarkdown;
     parseSseStream = mod.parseSseStream;
@@ -77,6 +90,53 @@ describe("parseOptions", () => {
         const parsed = parseOptions('"review this" --context-pack pack.txt --budget 120000', "/tmp/repo");
         expect(parsed.ok).toBe(false);
         expect(parsed.message).toContain("cannot be combined with --budget");
+    });
+});
+
+describe("buildContextPackBudgetPlan", () => {
+    it("uses manual override budget when provided", () => {
+        const plan = buildContextPackBudgetPlan({ query: "review", model: "gpt-5.4-pro", contextPackBudget: 180000 });
+        expect(plan.source).toBe("manual");
+        expect(plan.requestedBudget).toBe(180000);
+        expect(plan.finalBudget).toBeLessThan(180000);
+    });
+
+    it("preserves the old 400k/128k input ceiling behavior", () => {
+        const plan = buildContextPackBudgetPlan(
+            { query: "review", model: "gpt-5.2" },
+            {
+                provider: "openai",
+                id: "gpt-5.2",
+                contextWindow: 400000,
+                maxTokens: 128000,
+            },
+        );
+
+        expect(plan.source).toBe("model-auto");
+        expect(plan.inputFraction).toBe(0.75);
+        expect(plan.modelHardInputBudget).toBe(272000);
+        expect(plan.modelRatioInputBudget).toBe(300000);
+        expect(plan.requestedBudget).toBe(272000);
+        expect(plan.finalBudget).toBe(257952);
+    });
+
+    it("scales up on gpt-5.4-pro without saturating the full context window", () => {
+        const plan = buildContextPackBudgetPlan(
+            { query: "review", model: "gpt-5.4-pro" },
+            {
+                provider: "openai",
+                id: "gpt-5.4-pro",
+                contextWindow: 1100000,
+                maxTokens: 128000,
+            },
+        );
+
+        expect(plan.source).toBe("model-auto");
+        expect(plan.modelContextWindow).toBe(1100000);
+        expect(plan.modelHardInputBudget).toBe(972000);
+        expect(plan.modelRatioInputBudget).toBe(825000);
+        expect(plan.requestedBudget).toBe(825000);
+        expect(plan.finalBudget).toBe(810952);
     });
 });
 

@@ -44,11 +44,11 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 
 ## Defaults
 
-- Model: `gpt-5.2`
+- Model: `gpt-5.4-pro`
 - Reasoning effort: `xhigh`
 - Summary: `auto`
 - Verbosity: `medium`
-- Context-pack budget target: `272000`
+- Context-pack budget target: auto-sized from the selected model
 - Base ref: auto-detected (`origin/main`, `origin/master`, `main`, `master`, `HEAD~1`)
 
 ## Options
@@ -57,7 +57,7 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 - `--project <path>`
 - `--base <ref>`
 - `--context-pack <path>` (skip generation and use existing context pack)
-- `--budget <tokens>` (context-pack budget target; cannot combine with `--context-pack`)
+- `--budget <tokens>` (override the auto-sized context-pack budget target; cannot combine with `--context-pack`)
 - `--model <id>`
 - `--effort minimal|low|medium|high|xhigh`
 - `--verbosity low|medium|high`
@@ -108,7 +108,12 @@ Generated pack output includes:
 - If `--context-pack <path>` is provided, generation is skipped.
 - Context packing is deterministic and executed directly in the extension (no nested `pi -p` skill hop).
 - Related-file omissions are explicitly reported with reasons.
-- Context-pack generation applies request headroom reserve internally (query + protocol overhead), so effective pack budget can be lower than the configured target.
+- By default, context-pack budget is derived from the selected model metadata as the lower of:
+  - `contextWindow - maxTokens`
+  - `75% of contextWindow`
+- This preserves the old ~`272000` input-target behavior on `400k/128k` class models while still scaling up on larger models like `gpt-5.4-pro`.
+- If model metadata is unavailable, deep-review falls back to a `272000` token pre-reserve target.
+- Context-pack generation then subtracts request headroom (query + protocol overhead), so effective pack budget can be lower than the configured or auto-derived target.
 - Related candidates that are already in changed files are de-duplicated from related omission stats/manifests.
 - Related test/test-data files are only eligible when close to changed modules (shared path affinity or short graph distance).
 - `--debug` writes context-pack + responses debug artifacts to a temp directory.

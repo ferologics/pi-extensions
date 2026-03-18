@@ -26,6 +26,25 @@ type DeepReviewOptions = {
     debug: boolean;
 };
 
+type ContextPackBudgetSource = "manual" | "model-auto" | "default";
+
+type BudgetModelMetadata = Pick<Model<any>, "contextWindow" | "id" | "maxTokens" | "provider">;
+
+export type ContextPackBudgetPlan = {
+    source: ContextPackBudgetSource;
+    requestedBudget: number;
+    finalBudget: number;
+    overheadReserveTokens: number;
+    queryReserveTokens: number;
+    inputFraction?: number;
+    modelContextWindow?: number;
+    modelHardInputBudget?: number;
+    modelMaxTokens?: number;
+    modelId?: string;
+    modelProvider?: string;
+    modelRatioInputBudget?: number;
+};
+
 type ParseResult =
     | {
           ok: true;
@@ -101,8 +120,8 @@ A query is required, either as positional text or via \`--query\`.
 - \`--project <path>\`       Project dir for context packing (default: current cwd)
 - \`--base <ref>\`           Base ref for context pack diff (default: auto-detect)
 - \`--context-pack <path>\`  Skip context-pack generation and use an existing pack file
-- \`--budget <tokens>\`      Context-pack budget target (example: \`180000\`; cannot combine with \`--context-pack\`)
-- \`--model <id>\`           Responses model (default: \`gpt-5.2\`)
+- \`--budget <tokens>\`      Override the auto-sized context-pack budget target (example: \`180000\`; cannot combine with \`--context-pack\`)
+- \`--model <id>\`           Responses model (default: \`gpt-5.4-pro\`)
 - \`--effort <level>\`       \`minimal|low|medium|high|xhigh\` (default: \`xhigh\`)
 - \`--verbosity <level>\`    \`low|medium|high\` (default: \`medium\`)
 - \`--summary <mode>\`       \`auto|detailed|null\` (default: \`auto\`)
@@ -243,6 +262,7 @@ async function writeOutputArtifacts(
     responses: ResponsesResult,
     totalDurationMs: number,
     reportContent: string,
+    budgetPlan?: ContextPackBudgetPlan,
     debugDir?: string,
 ): Promise<OutputArtifacts> {
     const directory = await mkdtemp(path.join(os.tmpdir(), "deep-review-output-"));
@@ -268,7 +288,8 @@ async function writeOutputArtifacts(
         verbosity: options.verbosity,
         contextPackPath: packPath,
         contextPackPathOverride: options.contextPackPath,
-        contextPackBudget: options.contextPackBudget,
+        contextPackBudgetOverride: options.contextPackBudget,
+        contextPackBudgetPlan: budgetPlan,
         totalDurationMs,
         usage: responses.usage,
         responseId: responses.responseId,
@@ -363,7 +384,7 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
     const options: DeepReviewOptions = {
         query: "",
         projectDir: cwd,
-        model: "gpt-5.2",
+        model: "gpt-5.4-pro",
         effort: "xhigh",
         verbosity: "medium",
         summary: "auto",
@@ -751,6 +772,33 @@ async function resolveBearerToken(
     throw new Error("No OpenAI token found. Set OPENAI_API_KEY (recommended) or OPENAI_SESSION_TOKEN.");
 }
 
+async function buildResponsesHeaders(
+    ctx: ExtensionCommandContext,
+    options: Pick<DeepReviewOptions, "model" | "organization" | "projectId">,
+    accept: string,
+): Promise<{ headers: Record<string, string>; source: string }> {
+    const { token, source } = await resolveBearerToken(ctx, options.model);
+    const organization = options.organization ?? process.env.OPENAI_ORGANIZATION ?? process.env.OPENAI_ORG_ID;
+    const projectId = options.projectId ?? process.env.OPENAI_PROJECT ?? process.env.OPENAI_PROJECT_ID;
+
+    const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: accept,
+        "openai-beta": "responses=v1",
+    };
+
+    if (organization) {
+        headers["openai-organization"] = organization;
+    }
+
+    if (projectId) {
+        headers["OpenAI-Project"] = projectId;
+    }
+
+    return { headers, source };
+}
+
 function extractCompletedAnswer(responseObject: any): string {
     const output = Array.isArray(responseObject?.output) ? responseObject.output : [];
     const parts: string[] = [];
@@ -783,10 +831,7 @@ async function streamResponses(
     onEvent: (eventType: string) => void,
 ): Promise<ResponsesResult> {
     const startedAt = Date.now();
-    const { token, source } = await resolveBearerToken(ctx, options.model);
-
-    const organization = options.organization ?? process.env.OPENAI_ORGANIZATION ?? process.env.OPENAI_ORG_ID;
-    const projectId = options.projectId ?? process.env.OPENAI_PROJECT ?? process.env.OPENAI_PROJECT_ID;
+    const { headers, source } = await buildResponsesHeaders(ctx, options, "text/event-stream");
 
     const payload: Record<string, unknown> = {
         model: options.model,
@@ -812,21 +857,6 @@ async function streamResponses(
         stream: true,
         store: false,
     };
-
-    const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "text/event-stream",
-        "openai-beta": "responses=v1",
-    };
-
-    if (organization) {
-        headers["openai-organization"] = organization;
-    }
-
-    if (projectId) {
-        headers["OpenAI-Project"] = projectId;
-    }
 
     const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
@@ -936,8 +966,8 @@ async function streamResponses(
             JSON.stringify({
                 type: "request_meta",
                 tokenSource: source,
-                hasOrganizationHeader: !!organization,
-                hasProjectHeader: !!projectId,
+                hasOrganizationHeader: "openai-organization" in headers,
+                hasProjectHeader: "OpenAI-Project" in headers,
                 payloadMeta: {
                     model: options.model,
                     effort: options.effort,
@@ -979,8 +1009,9 @@ function summarizeProvidedContextPackMessage(packPath: string): string {
 }
 
 const DEFAULT_CONTEXT_PACK_BUDGET = 272000;
-const CONTEXT_PACK_OVERHEAD_RESERVE = 12000;
+const CONTEXT_PACK_INPUT_FRACTION = 0.75;
 const CONTEXT_PACK_MIN_BUDGET = 4096;
+const CONTEXT_PACK_OVERHEAD_RESERVE = 12000;
 
 function estimateQueryReserveTokens(query: string): number {
     const queryChars = query.trim().length;
@@ -988,17 +1019,136 @@ function estimateQueryReserveTokens(query: string): number {
     return Math.max(2048, roughTokens);
 }
 
-function contextPackBudget(options: DeepReviewOptions): number {
-    const requestedBudget = options.contextPackBudget ?? DEFAULT_CONTEXT_PACK_BUDGET;
-    const reserveTokens = CONTEXT_PACK_OVERHEAD_RESERVE + estimateQueryReserveTokens(options.query);
-    return Math.max(CONTEXT_PACK_MIN_BUDGET, requestedBudget - reserveTokens);
+function estimateHardInputBudget(model: BudgetModelMetadata): number {
+    const safeContextWindow = Math.max(CONTEXT_PACK_MIN_BUDGET, Math.floor(model.contextWindow));
+    const safeMaxTokens = Math.max(0, Math.floor(model.maxTokens));
+    return Math.max(CONTEXT_PACK_MIN_BUDGET, safeContextWindow - safeMaxTokens);
 }
 
-function toContextPackOptions(options: DeepReviewOptions): ContextPackOptions {
+function estimateRatioInputBudget(model: BudgetModelMetadata): number {
+    const safeContextWindow = Math.max(CONTEXT_PACK_MIN_BUDGET, Math.floor(model.contextWindow));
+    return Math.max(CONTEXT_PACK_MIN_BUDGET, Math.floor(safeContextWindow * CONTEXT_PACK_INPUT_FRACTION));
+}
+
+function resolveDeepReviewModel(
+    modelRegistry: ExtensionCommandContext["modelRegistry"],
+    modelId: string,
+): BudgetModelMetadata | undefined {
+    const fromRegistry = (modelRegistry.find("openai", modelId) ?? modelRegistry.find("openai-codex", modelId)) as
+        | BudgetModelMetadata
+        | undefined;
+
+    if (fromRegistry) {
+        return fromRegistry;
+    }
+
+    return (
+        (getModel("openai", modelId as never) as BudgetModelMetadata | undefined) ??
+        (getModel("openai-codex", modelId as never) as BudgetModelMetadata | undefined)
+    );
+}
+
+export function buildContextPackBudgetPlan(
+    options: Pick<DeepReviewOptions, "contextPackBudget" | "model" | "query">,
+    model?: BudgetModelMetadata,
+): ContextPackBudgetPlan {
+    const queryReserveTokens = estimateQueryReserveTokens(options.query);
+    const overheadReserveTokens = CONTEXT_PACK_OVERHEAD_RESERVE;
+
+    if (options.contextPackBudget !== undefined) {
+        return {
+            source: "manual",
+            requestedBudget: options.contextPackBudget,
+            finalBudget: Math.max(
+                CONTEXT_PACK_MIN_BUDGET,
+                options.contextPackBudget - overheadReserveTokens - queryReserveTokens,
+            ),
+            overheadReserveTokens,
+            queryReserveTokens,
+        };
+    }
+
+    if (model) {
+        const modelHardInputBudget = estimateHardInputBudget(model);
+        const modelRatioInputBudget = estimateRatioInputBudget(model);
+        const requestedBudget = Math.min(modelHardInputBudget, modelRatioInputBudget);
+
+        return {
+            source: "model-auto",
+            requestedBudget,
+            finalBudget: Math.max(
+                CONTEXT_PACK_MIN_BUDGET,
+                requestedBudget - overheadReserveTokens - queryReserveTokens,
+            ),
+            overheadReserveTokens,
+            queryReserveTokens,
+            inputFraction: CONTEXT_PACK_INPUT_FRACTION,
+            modelContextWindow: model.contextWindow,
+            modelHardInputBudget,
+            modelMaxTokens: model.maxTokens,
+            modelId: model.id,
+            modelProvider: model.provider,
+            modelRatioInputBudget,
+        };
+    }
+
+    return {
+        source: "default",
+        requestedBudget: DEFAULT_CONTEXT_PACK_BUDGET,
+        finalBudget: Math.max(
+            CONTEXT_PACK_MIN_BUDGET,
+            DEFAULT_CONTEXT_PACK_BUDGET - overheadReserveTokens - queryReserveTokens,
+        ),
+        overheadReserveTokens,
+        queryReserveTokens,
+    };
+}
+
+function formatBudgetSource(plan: ContextPackBudgetPlan): string {
+    switch (plan.source) {
+        case "manual":
+            return "manual `--budget` override";
+        case "model-auto":
+            return `auto from ${plan.modelProvider}/${plan.modelId}`;
+        default:
+            return `fallback default (${DEFAULT_CONTEXT_PACK_BUDGET.toLocaleString()} tokens)`;
+    }
+}
+
+function formatContextPackBudgetLines(plan: ContextPackBudgetPlan): string[] {
+    const lines = [`- Budget source: ${formatBudgetSource(plan)}`];
+
+    if (plan.modelContextWindow !== undefined) {
+        lines.push(`- Model context window: ${plan.modelContextWindow.toLocaleString()} tokens`);
+    }
+
+    if (plan.modelMaxTokens !== undefined) {
+        lines.push(`- Model max output: ${plan.modelMaxTokens.toLocaleString()} tokens`);
+    }
+
+    if (plan.modelHardInputBudget !== undefined) {
+        lines.push(`- Hard input limit (context - max output): ${plan.modelHardInputBudget.toLocaleString()} tokens`);
+    }
+
+    if (plan.modelRatioInputBudget !== undefined && plan.inputFraction !== undefined) {
+        lines.push(
+            `- Ratio input cap (${Math.round(plan.inputFraction * 100)}%): ${plan.modelRatioInputBudget.toLocaleString()} tokens`,
+        );
+    }
+
+    lines.push(`- Requested pack budget: ${plan.requestedBudget.toLocaleString()} tokens`);
+    lines.push(`- Overhead reserve: ${plan.overheadReserveTokens.toLocaleString()} tokens`);
+    lines.push(`- Query reserve: ${plan.queryReserveTokens.toLocaleString()} tokens`);
+    lines.push(`- Effective pack budget: ${plan.finalBudget.toLocaleString()} tokens`);
+
+    return lines;
+}
+
+function toContextPackOptions(options: DeepReviewOptions, budgetPlan: ContextPackBudgetPlan): ContextPackOptions {
     return {
         projectDir: options.projectDir,
         baseRef: options.baseRef,
-        budget: contextPackBudget(options),
+        budget: budgetPlan.finalBudget,
         outputName: "pr-context.txt",
         tmpOutput: true,
         includeDependents: true,
@@ -1020,6 +1170,7 @@ function summarizeGeneratedContextPackMessage(
     report: ContextPackReportV1,
     packPath: string,
     durationMs: number,
+    budgetPlan: ContextPackBudgetPlan,
 ): string {
     const lines: string[] = [
         "## Deep review · context pack stage",
@@ -1030,6 +1181,10 @@ function summarizeGeneratedContextPackMessage(
         `- Baseline tokens: ${report.tokens.baseline.toLocaleString()}`,
         `- Final tokens: ${report.tokens.final.toLocaleString()}`,
         `- Remaining: ${report.tokens.remaining.toLocaleString()}`,
+        "",
+        "## Budgeting",
+        "",
+        ...formatContextPackBudgetLines(budgetPlan),
         "",
         "## Context stats",
         "",
@@ -1135,6 +1290,7 @@ function summarizeFinalMessage(
     packDurationMs: number,
     responses: ResponsesResult,
     totalDurationMs: number,
+    budgetPlan?: ContextPackBudgetPlan,
     debugDir?: string,
     artifacts?: OutputArtifacts,
 ): string {
@@ -1157,6 +1313,10 @@ function summarizeFinalMessage(
         `- Responses time: ${formatDuration(responses.durationMs)}`,
         `- Total time: ${formatDuration(totalDurationMs)}`,
         responses.responseId ? `- Response ID: \`${responses.responseId}\`` : undefined,
+        budgetPlan ? "" : undefined,
+        budgetPlan ? "## Context budget" : undefined,
+        budgetPlan ? "" : undefined,
+        ...(budgetPlan ? formatContextPackBudgetLines(budgetPlan) : []),
         "",
         "## Usage",
         "",
@@ -1291,6 +1451,7 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                 try {
                     let packPath: string | undefined;
                     let packDurationMs = 0;
+                    let contextPackBudgetPlan: ContextPackBudgetPlan | undefined;
                     let contextPackDebugOutput = "";
                     let generatedPackReport: ContextPackReportV1 | undefined;
 
@@ -1309,11 +1470,23 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                             display: true,
                         });
                     } else {
+                        const resolvedModel = resolveDeepReviewModel(ctx.modelRegistry, options.model);
+                        contextPackBudgetPlan = buildContextPackBudgetPlan(options, resolvedModel);
+
                         const packStartedAt = Date.now();
-                        const contextPackResult = await buildContextPack(toContextPackOptions(options));
+                        const contextPackResult = await buildContextPack(
+                            toContextPackOptions(options, contextPackBudgetPlan),
+                        );
                         packDurationMs = Date.now() - packStartedAt;
                         generatedPackReport = contextPackResult.report;
-                        contextPackDebugOutput = `${JSON.stringify(contextPackResult.report, null, 4)}\n`;
+                        contextPackDebugOutput = `${JSON.stringify(
+                            {
+                                budgetPlan: contextPackBudgetPlan,
+                                report: contextPackResult.report,
+                            },
+                            null,
+                            4,
+                        )}\n`;
 
                         if (!contextPackResult.ok) {
                             const contentLines = ["deep-review context-pack failed."];
@@ -1324,6 +1497,15 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
 
                             if (contextPackResult.report.paths.reportPath) {
                                 contentLines.push("", `- Report: \`${contextPackResult.report.paths.reportPath}\``);
+                            }
+
+                            if (contextPackBudgetPlan) {
+                                contentLines.push(
+                                    "",
+                                    "### Budgeting",
+                                    "",
+                                    ...formatContextPackBudgetLines(contextPackBudgetPlan),
+                                );
                             }
 
                             if (contextPackResult.report.warnings.length > 0) {
@@ -1362,6 +1544,7 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                                 contextPackResult.report,
                                 packPath,
                                 packDurationMs,
+                                contextPackBudgetPlan,
                             ),
                             display: true,
                         });
@@ -1436,6 +1619,7 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                         packDurationMs,
                         responses,
                         totalDurationMs,
+                        contextPackBudgetPlan,
                         debugDir,
                     );
 
@@ -1448,6 +1632,7 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                             responses,
                             totalDurationMs,
                             preliminaryContent,
+                            contextPackBudgetPlan,
                             debugDir,
                         );
                     } catch (artifactError) {
@@ -1465,6 +1650,7 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                         packDurationMs,
                         responses,
                         totalDurationMs,
+                        contextPackBudgetPlan,
                         debugDir,
                         artifacts,
                     );

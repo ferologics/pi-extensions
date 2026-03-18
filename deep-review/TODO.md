@@ -8,6 +8,8 @@ Reference: `extensions/deep-review/ARCH.md`
 
 - [ ] Batch token estimation for related candidates (avoid one `tokencount` subprocess per file)
 - [ ] Remove external `tokencount` dependency by embedding in-extension token counting (JS tokenizer path), keeping parity with current budgeting behavior.
+- [ ] Add automatic context-pack cache keyed by repo/base/head + pack-affecting options, so repeated `/deep-review` runs can reuse a previous pack instead of rebuilding it every time.
+- [ ] Decide cache invalidation + UX (`cache hit` reporting, explicit refresh, interaction with manual `--context-pack` reuse).
 - [ ] Add stage timing telemetry in report JSON (`git`, `scribe`, `filter`, `tokenize`, `render`)
 - [ ] Reduce redundant render/tokenize loops where possible without losing deterministic guarantees
 - [ ] Explore bounded Scribe concurrency with deterministic post-sort merge
@@ -27,6 +29,11 @@ Reference: `extensions/deep-review/ARCH.md`
 
 - [ ] Explore optional interactive omission arbitration loop (user chooses what to keep/drop under budget pressure)
 - [ ] Explore optional advisory scoring pass (non-authoritative) for difficult tie-breaks
+
+### P3 — Maintainability / structure
+
+- [ ] Split `extensions/deep-review/index.ts` into focused modules (`budget`, `responses`, `artifacts`, `ui`) once current behavior stabilizes; keep behavior identical.
+- [ ] Add focused tests around request building, auth source selection, SSE/error handling, and final report rendering so the split is safe.
 
 ## Replace external Scribe with internal minimal recall engine
 
@@ -70,6 +77,12 @@ Goal: remove runtime dependency on external `@sibyllinesoft/scribe` CLI and own 
 
 Goal: allow `/deep-review` to run with ChatGPT Plus/Pro OAuth (`openai-codex`) by supporting the Codex responses endpoint in addition to OpenAI Platform API.
 
+### Research pointer
+
+For prior investigation into ChatGPT/Codex subscription support and endpoint-routing ideas, see Pi session:
+
+- `7f8bc5ce-d477-44ee-8d75-72ef0c243d3a`
+
 ### TODO
 
 - [ ] Add dual-path request logic in `index.ts`:
@@ -92,24 +105,32 @@ Goal: allow `/deep-review` to run with ChatGPT Plus/Pro OAuth (`openai-codex`) b
 
 ## Dynamic context budget for context packing
 
-Goal: size `pr-context-packer --budget` from the selected model at runtime instead of using a fixed 272k default.
+Goal: keep the new model-aware context budget policy stable, explainable, and safe across provider/model changes.
+
+### Current behavior
+
+- Auto-sizing is implemented in `/deep-review`.
+- Current input-budget policy is:
+  - start with `min(contextWindow - maxTokens, 75% of contextWindow)`
+  - then subtract request headroom (query + protocol overhead)
+- Fallback when model metadata is unavailable: `272000` pre-reserve target.
+- Budget math is surfaced in run output, debug artifacts, and handoff metadata.
 
 ### TODO
 
-- [ ] Resolve selected model limits via model registry (`contextWindow`, `maxTokens`) using provider + model ID
-- [ ] Compute `Imax = contextWindow - reservedOutput` where:
-  - `reservedOutput` defaults to model `maxTokens`
-  - configurable headroom is applied (for system/tool overhead + safety)
-- [ ] Pass computed budget to context packer (`--budget <Imax>`) from `/deep-review`
-- [ ] Add fallback behavior when model metadata is missing (keep current 272k default)
-- [ ] Include debug/report metadata showing computed budget math per run
-- [ ] Document provider differences (`openai` 400k vs `openai-codex` 272k)
+- [ ] Add explicit regression coverage for:
+  - `400k/128k` class models (preserve legacy ~`272k` input behavior)
+  - `272k` class models
+  - `1.1M` class models (scale up without near-saturating the window)
+- [ ] Decide whether the `75/25` split should remain the default or become configurable per repo/provider
+- [ ] Document provider/model differences more explicitly (`openai` vs `openai-codex`, model metadata drift)
+- [ ] Watch for real-world context-overflow or answer-truncation regressions and adjust headroom if needed
 
 ### Exit criteria
 
-- [ ] Context pack budget automatically adapts to selected model/provider
 - [ ] No context-overflow regressions in deep-review runs
-- [ ] Reports clearly show the budget formula inputs and final budget
+- [ ] Budget policy stays explainable across provider/model changes
+- [ ] Tests cover both legacy `400k/128k` behavior and large-window scaling
 
 ## Include AGENTS.md in packed context
 
