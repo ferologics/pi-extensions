@@ -1,7 +1,7 @@
 {
     "name": "@ferologics/pi-extensions",
     "version": "0.4.1",
-    "description": "Custom Pi extensions bundle (deep-review, pi-notify, pi-system-theme, plan-mode)",
+    "description": "Custom Pi extensions bundle (deep-review, pi-notify, pi-system-theme, plan-mode, pi-verbosity-control)",
     "type": "module",
     "keywords": [
         "pi-package",
@@ -29,7 +29,8 @@
             "deep-review/index.ts",
             "pi-notify/index.ts",
             "pi-system-theme/index.ts",
-            "plan-mode/index.ts"
+            "plan-mode/index.ts",
+            "pi-verbosity-control/index.ts"
         ]
     },
     "publishConfig": {

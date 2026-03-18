@@ -33,6 +33,7 @@ Current extensions:
 - `pi-notify`
 - `pi-system-theme`
 - `plan-mode`
+- `pi-verbosity-control`
 
 ## Type Checking
 

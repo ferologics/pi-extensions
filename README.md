@@ -4,12 +4,13 @@ Custom extensions for [pi-coding-agent](https://github.com/badlogic/pi-mono).
 
 ## Extensions
 
-| Extension                             | Description                                                                   |
-| ------------------------------------- | ----------------------------------------------------------------------------- |
-| [`deep-review`](deep-review/)         | Run context-pack + direct OpenAI Responses deep review with live streaming UI |
-| [`pi-notify`](pi-notify/)             | Desktop notifications when the agent finishes                                 |
-| [`pi-system-theme`](pi-system-theme/) | Sync Pi theme with macOS dark/light mode and configurable theme names         |
-| [`plan-mode`](plan-mode/)             | Read-only plan mode with progress tracking and questionnaire support          |
+| Extension                                       | Description                                                                   |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| [`deep-review`](deep-review/)                   | Run context-pack + direct OpenAI Responses deep review with live streaming UI |
+| [`pi-notify`](pi-notify/)                       | Desktop notifications when the agent finishes                                 |
+| [`pi-system-theme`](pi-system-theme/)           | Sync Pi theme with macOS dark/light mode and configurable theme names         |
+| [`plan-mode`](plan-mode/)                       | Read-only plan mode with progress tracking and questionnaire support          |
+| [`pi-verbosity-control`](pi-verbosity-control/) | Per-model OpenAI verbosity overrides with a keyboard toggle                   |
 
 Each extension folder contains full usage details and examples.
 
@@ -28,4 +29,5 @@ ln -s ~/dev/pi-extensions/deep-review ~/.pi/agent/extensions/
 ln -s ~/dev/pi-extensions/pi-notify ~/.pi/agent/extensions/
 ln -s ~/dev/pi-extensions/pi-system-theme ~/.pi/agent/extensions/
 ln -s ~/dev/pi-extensions/plan-mode ~/.pi/agent/extensions/
+ln -s ~/dev/pi-extensions/pi-verbosity-control ~/.pi/agent/extensions/
 ```
