@@ -141,6 +141,7 @@ A query is required, either as positional text or via \`--query\`.
 - If \`--context-pack <path>\` is provided, deep-review uses that file directly and skips pack generation.
 `;
 
+// biome-ignore lint/complexity/useRegexLiterals: control escape sequences are clearer and lint-cleaner via String.raw here.
 const ANSI_REGEX = new RegExp(String.raw`\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007]*(?:\u0007|\u001b\\)`, "g");
 const WIDGET_TICK_MS = 250;
 const SPINNER_FRAME_MS = 100;
