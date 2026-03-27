@@ -742,13 +742,20 @@ export async function* parseSseStream(body: ReadableStream<Uint8Array>): AsyncGe
     }
 }
 
-async function resolveBearerToken(
+function hasAuthorizationHeader(headers: Record<string, string>): boolean {
+    return Object.keys(headers).some((key) => key.toLowerCase() === "authorization");
+}
+
+async function resolveRequestHeaders(
     ctx: ExtensionCommandContext,
     modelId: string,
-): Promise<{ token: string; source: string }> {
+): Promise<{ headers: Record<string, string>; source: string }> {
     const fromEnv = process.env.OPENAI_API_KEY?.trim();
     if (fromEnv) {
-        return { token: fromEnv, source: "OPENAI_API_KEY" };
+        return {
+            headers: { Authorization: `Bearer ${fromEnv}` },
+            source: "OPENAI_API_KEY",
+        };
     }
 
     const modelCandidates = [
@@ -759,15 +766,30 @@ async function resolveBearerToken(
     ].filter(Boolean);
 
     for (const candidate of modelCandidates) {
-        const fromAuth = await ctx.modelRegistry.getApiKey(candidate as unknown as Model<any>);
-        if (fromAuth) {
-            return { token: fromAuth, source: "auth.json/openai" };
+        const auth = await ctx.modelRegistry.getApiKeyAndHeaders(candidate as unknown as Model<any>);
+        if (!auth.ok) {
+            continue;
+        }
+
+        const headers = { ...(auth.headers ?? {}) };
+        if (!hasAuthorizationHeader(headers) && auth.apiKey) {
+            headers.Authorization = `Bearer ${auth.apiKey}`;
+        }
+
+        if (hasAuthorizationHeader(headers)) {
+            return {
+                headers,
+                source: `modelRegistry/${candidate.provider}/${candidate.id}`,
+            };
         }
     }
 
     const sessionLike = process.env.OPENAI_SESSION_TOKEN?.trim() ?? process.env.OPENAI_BEARER_TOKEN?.trim();
     if (sessionLike) {
-        return { token: sessionLike, source: "OPENAI_SESSION_TOKEN/OPENAI_BEARER_TOKEN" };
+        return {
+            headers: { Authorization: `Bearer ${sessionLike}` },
+            source: "OPENAI_SESSION_TOKEN/OPENAI_BEARER_TOKEN",
+        };
     }
 
     throw new Error("No OpenAI token found. Set OPENAI_API_KEY (recommended) or OPENAI_SESSION_TOKEN.");
@@ -778,12 +800,12 @@ async function buildResponsesHeaders(
     options: Pick<DeepReviewOptions, "model" | "organization" | "projectId">,
     accept: string,
 ): Promise<{ headers: Record<string, string>; source: string }> {
-    const { token, source } = await resolveBearerToken(ctx, options.model);
+    const { headers: authHeaders, source } = await resolveRequestHeaders(ctx, options.model);
     const organization = options.organization ?? process.env.OPENAI_ORGANIZATION ?? process.env.OPENAI_ORG_ID;
     const projectId = options.projectId ?? process.env.OPENAI_PROJECT ?? process.env.OPENAI_PROJECT_ID;
 
     const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
+        ...authHeaders,
         "Content-Type": "application/json",
         Accept: accept,
         "openai-beta": "responses=v1",
