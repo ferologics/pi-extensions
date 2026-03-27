@@ -1,0 +1,90 @@
+name: Publish package to npm
+
+on:
+    release:
+        types:
+            - published
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: "Release tag to publish (for manual reruns)"
+                required: false
+                type: string
+
+jobs:
+    publish:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - name: Resolve tag
+              id: release_ref
+              run: |
+                  TAG="${{ github.event.release.tag_name }}"
+                  if [ -z "$TAG" ]; then
+                      TAG="${{ github.event.inputs.tag }}"
+                  fi
+                  if [ -z "$TAG" ]; then
+                      TAG="${{ github.ref_name }}"
+                  fi
+                  if [ -z "$TAG" ]; then
+                      echo "Could not resolve tag name."
+                      exit 1
+                  fi
+                  echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+            - name: Checkout release tag
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ steps.release_ref.outputs.tag }}
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "24"
+                  registry-url: "https://registry.npmjs.org"
+                  token: ""
+
+            - name: Verify npm CLI supports trusted publishing
+              run: |
+                  VERSION="$(npm --version)"
+                  MAJOR="${VERSION%%.*}"
+                  if [ "$MAJOR" -lt 11 ]; then
+                      echo "npm $VERSION is too old for trusted publishing; need >=11"
+                      exit 1
+                  fi
+                  echo "Using npm $VERSION"
+
+            - name: Read package metadata
+              id: pkg
+              run: |
+                  node -e 'const fs=require("fs"); const pkg=JSON.parse(fs.readFileSync("package.json","utf8")); fs.appendFileSync(process.env.GITHUB_OUTPUT, `name=${pkg.name}\nversion=${pkg.version}\n`);'
+
+            - name: Verify tag matches package version
+              run: |
+                  TAG="${{ steps.release_ref.outputs.tag }}"
+                  VERSION="${{ steps.pkg.outputs.version }}"
+                  if [ "v$VERSION" != "$TAG" ]; then
+                      echo "Tag $TAG does not match package.json version $VERSION"
+                      exit 1
+                  fi
+
+            - name: Check whether version already exists on npm
+              id: npm_exists
+              run: |
+                  if npm view "${{ steps.pkg.outputs.name }}@${{ steps.pkg.outputs.version }}" version >/dev/null 2>&1; then
+                      echo "exists=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "exists=false" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - name: Publish to npm (trusted publisher / OIDC)
+              if: steps.npm_exists.outputs.exists != 'true'
+              env:
+                  NODE_AUTH_TOKEN: ""
+              run: npm publish --provenance
+
+            - name: Skip message (already published)
+              if: steps.npm_exists.outputs.exists == 'true'
+              run: echo "${{ steps.pkg.outputs.name }}@${{ steps.pkg.outputs.version }} already exists on npm; skipping publish."

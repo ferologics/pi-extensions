@@ -1,0 +1,32 @@
+{
+    "name": "pi-ghostty-hunk",
+    "version": "0.1.0",
+    "description": "Open Hunk in a new Ghostty window from inside Pi",
+    "keywords": [
+        "pi-package",
+        "pi",
+        "pi-coding-agent",
+        "ghostty",
+        "hunk"
+    ],
+    "author": "ferologics",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ferologics/pi-ghostty-hunk.git"
+    },
+    "homepage": "https://github.com/ferologics/pi-ghostty-hunk#readme",
+    "bugs": {
+        "url": "https://github.com/ferologics/pi-ghostty-hunk/issues"
+    },
+    "pi": {
+        "extensions": [
+            "index.ts"
+        ]
+    },
+    "piRelease": {
+        "repo": "ferologics/pi-ghostty-hunk",
+        "branch": "main",
+        "subtreePublishRecipe": "publish-pi-ghostty-hunk"
+    }
+}

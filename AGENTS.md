@@ -19,12 +19,16 @@ Pre-commit hook runs `just check` before each commit.
 
 ## Structure
 
-Each extension is a folder with an `index.ts` entry point:
+Each extension is a folder with an `index.ts` entry point plus optional docs/release files:
 
 ```
 extension-name/
-├── index.ts      # Main extension code
-└── README.md     # Usage docs
+├── index.ts                         # Main extension code
+├── README.md                        # Usage docs
+├── package.json                     # Standalone package manifest (optional)
+├── TODO.md                          # Extension backlog (optional)
+├── VISION.md                        # Extension direction (optional)
+└── .github/workflows/npm-publish.yml # Standalone publish workflow (optional)
 ```
 
 Current extensions:

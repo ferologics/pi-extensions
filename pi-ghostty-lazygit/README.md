@@ -22,7 +22,25 @@ Open `lazygit` in a new Ghostty window from inside Pi.
 
 ## Install
 
-This extension is bundled in `@ferologics/pi-extensions` / `pi-shit`.
+From npm (standalone package):
+
+```bash
+pi install npm:pi-ghostty-lazygit
+```
+
+From git:
+
+```bash
+pi install git:github.com/ferologics/pi-ghostty-lazygit
+```
+
+Or use the bundled package:
+
+```bash
+pi install npm:@ferologics/pi-extensions
+# or
+pi install npm:pi-shit
+```
 
 After updating your package, reload Pi:
 
