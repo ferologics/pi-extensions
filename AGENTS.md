@@ -30,6 +30,8 @@ extension-name/
 Current extensions:
 
 - `deep-review`
+- `pi-ghostty-hunk`
+- `pi-ghostty-lazygit`
 - `pi-notify`
 - `pi-system-theme`
 - `plan-mode`
@@ -55,6 +57,7 @@ Extensions import from pi's packages. The `tsconfig.json` maps these:
 
 - Extension-specific backlog lives next to each extension:
   - `deep-review/TODO.md`
+  - `pi-ghostty-hunk/TODO.md`
   - `pi-system-theme/TODO.md`
   - `plan-mode/TODO.md`
   - `pi-verbosity-control/TODO.md`
