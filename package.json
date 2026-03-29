@@ -1,6 +1,6 @@
 {
     "name": "@ferologics/pi-extensions",
-    "version": "0.5.1",
+    "version": "0.6.0",
     "description": "Custom Pi extensions bundle (deep-review, pi-ghostty-hunk, pi-ghostty-lazygit, pi-notify, pi-system-theme, plan-mode, pi-verbosity-control)",
     "type": "module",
     "keywords": [
