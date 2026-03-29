@@ -1,9 +1,10 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Api, Model } from "@mariozechner/pi-ai";
+import { FooterComponent } from "@mariozechner/pi-coding-agent";
 import { visibleWidth } from "@mariozechner/pi-tui";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
     buildFooterRightSideCandidates,
@@ -71,6 +72,7 @@ describe("pi-verbosity-control helpers", () => {
     it("prefers exact provider/model matches over bare model ids", () => {
         const model = createModel();
         const config: VerbosityConfig = {
+            showIndicator: false,
             models: {
                 "gpt-5.4": "low",
                 "openai-codex/gpt-5.4": "high",
@@ -125,12 +127,13 @@ describe("pi-verbosity-control helpers", () => {
 });
 
 describe("pi-verbosity-control config io", () => {
-    it("loads missing config as empty", async () => {
-        await expect(loadConfig()).resolves.toEqual({ models: {} });
+    it("loads missing config as empty with hidden indicator", async () => {
+        await expect(loadConfig()).resolves.toEqual({ showIndicator: false, models: {} });
     });
 
     it("saves config with pretty JSON", async () => {
         const config: VerbosityConfig = {
+            showIndicator: false,
             models: {
                 "gpt-5.4": "low",
             },
@@ -140,6 +143,7 @@ describe("pi-verbosity-control config io", () => {
 
         const raw = await readFile(path.join(testHome, ".pi", "agent", "verbosity.json"), "utf8");
         expect(raw).toBe(`{
+    "showIndicator": false,
     "models": {
         "gpt-5.4": "low"
     }
@@ -153,6 +157,7 @@ describe("pi-verbosity-control config io", () => {
             configPath,
             `${JSON.stringify(
                 {
+                    showIndicator: true,
                     models: {
                         "gpt-5.4": "LOW",
                         "openai-codex/gpt-5.4": "banana",
@@ -166,6 +171,7 @@ describe("pi-verbosity-control config io", () => {
         );
 
         await expect(loadConfig()).resolves.toEqual({
+            showIndicator: true,
             models: {
                 "gpt-5.4": "low",
             },
@@ -183,33 +189,50 @@ async function createRuntime(config: VerbosityConfig) {
     const { default: verbosityControlExtension } = await import("./index.js");
 
     let sessionStartHandler: ((event: unknown, ctx: TestContext) => Promise<void> | void) | undefined;
+    let sessionShutdownHandler: ((event: unknown, ctx: TestContext) => Promise<void> | void) | undefined;
     let beforeProviderRequestHandler: ((event: { payload: unknown }, ctx: TestContext) => unknown) | undefined;
-    let shortcutHandler: ((ctx: TestContext) => Promise<void> | void) | undefined;
+    const shortcutHandlers = new Map<string, (ctx: TestContext) => Promise<void> | void>();
 
     const pi = {
         on: (event: string, handler: (event: unknown, ctx: TestContext) => Promise<void> | void) => {
             if (event === "session_start") {
                 sessionStartHandler = handler;
             }
+            if (event === "session_shutdown") {
+                sessionShutdownHandler = handler;
+            }
             if (event === "before_provider_request") {
                 beforeProviderRequestHandler = handler as (event: { payload: unknown }, ctx: TestContext) => unknown;
             }
         },
-        registerShortcut: (_shortcut: string, options: { handler: (ctx: TestContext) => Promise<void> | void }) => {
-            shortcutHandler = options.handler;
+        registerShortcut: (shortcut: string, options: { handler: (ctx: TestContext) => Promise<void> | void }) => {
+            shortcutHandlers.set(shortcut, options.handler);
         },
     };
 
     verbosityControlExtension(pi as never);
 
-    if (!sessionStartHandler || !beforeProviderRequestHandler || !shortcutHandler) {
+    const cycleShortcut = process.platform === "darwin" ? "alt+v" : "ctrl+alt+v";
+    const toggleIndicatorShortcut = process.platform === "darwin" ? "alt+shift+v" : "ctrl+alt+shift+v";
+    const cycleShortcutHandler = shortcutHandlers.get(cycleShortcut);
+    const toggleIndicatorShortcutHandler = shortcutHandlers.get(toggleIndicatorShortcut);
+
+    if (
+        !sessionStartHandler ||
+        !sessionShutdownHandler ||
+        !beforeProviderRequestHandler ||
+        !cycleShortcutHandler ||
+        !toggleIndicatorShortcutHandler
+    ) {
         throw new Error("Extension did not register expected handlers");
     }
 
     return {
         sessionStartHandler,
+        sessionShutdownHandler,
         beforeProviderRequestHandler,
-        shortcutHandler,
+        cycleShortcutHandler,
+        toggleIndicatorShortcutHandler,
     };
 }
 
@@ -217,42 +240,32 @@ type TestContext = {
     hasUI: boolean;
     model: Model<Api> | undefined;
     ui: {
-        theme: {
-            fg: (color: string, text: string) => string;
-        };
         notify: (message: string, level?: string) => void;
-        setStatus: (key: string, text: string | undefined) => void;
     };
 };
 
 function createContext(model: Model<Api>): {
     ctx: TestContext;
     notifyMock: ReturnType<typeof vi.fn>;
-    setStatusMock: ReturnType<typeof vi.fn>;
 } {
     const notifyMock = vi.fn();
-    const setStatusMock = vi.fn();
 
     return {
         ctx: {
             hasUI: true,
             model,
             ui: {
-                theme: {
-                    fg: (_color: string, text: string) => text,
-                },
                 notify: notifyMock,
-                setStatus: setStatusMock,
             },
         },
         notifyMock,
-        setStatusMock,
     };
 }
 
 describe("pi-verbosity-control runtime", () => {
     it("patches requests for configured models after session start", async () => {
         const runtime = await createRuntime({
+            showIndicator: false,
             models: {
                 "gpt-5.4": "low",
             },
@@ -278,25 +291,72 @@ describe("pi-verbosity-control runtime", () => {
                 verbosity: "low",
             },
         });
+
+        await runtime.sessionShutdownHandler({}, ctx);
     });
 
     it("cycles and persists the current model setting from the shortcut", async () => {
         const runtime = await createRuntime({
+            showIndicator: false,
             models: {
                 "gpt-5.4": "low",
             },
         });
-        const { ctx, notifyMock, setStatusMock } = createContext(createModel());
+        const { ctx, notifyMock } = createContext(createModel());
 
         await runtime.sessionStartHandler({}, ctx);
-        await runtime.shortcutHandler(ctx);
+        await runtime.cycleShortcutHandler(ctx);
 
         const saved = JSON.parse(await readFile(path.join(testHome, ".pi", "agent", "verbosity.json"), "utf8")) as {
+            showIndicator: boolean;
             models: Record<string, string>;
         };
 
+        expect(saved.showIndicator).toBe(false);
         expect(saved.models["gpt-5.4"]).toBe("medium");
-        expect(setStatusMock).toHaveBeenLastCalledWith("verbosity", undefined);
         expect(notifyMock).toHaveBeenLastCalledWith("Verbosity for gpt-5.4 → medium", "info");
+
+        await runtime.sessionShutdownHandler({}, ctx);
+    });
+
+    it("toggles indicator visibility and persists it", async () => {
+        const runtime = await createRuntime({
+            showIndicator: false,
+            models: {
+                "gpt-5.4": "low",
+            },
+        });
+        const { ctx, notifyMock } = createContext(createModel());
+
+        await runtime.sessionStartHandler({}, ctx);
+        await runtime.toggleIndicatorShortcutHandler(ctx);
+
+        const saved = JSON.parse(await readFile(path.join(testHome, ".pi", "agent", "verbosity.json"), "utf8")) as {
+            showIndicator: boolean;
+            models: Record<string, string>;
+        };
+
+        expect(saved.showIndicator).toBe(true);
+        expect(saved.models["gpt-5.4"]).toBe("low");
+        expect(notifyMock).toHaveBeenLastCalledWith("Verbosity indicator shown.", "info");
+
+        await runtime.sessionShutdownHandler({}, ctx);
+    });
+
+    it("patches only while the indicator is enabled and cleans up on session shutdown", async () => {
+        const runtime = await createRuntime({
+            showIndicator: true,
+            models: {
+                "gpt-5.4": "low",
+            },
+        });
+        const { ctx } = createContext(createModel());
+        const originalRender = FooterComponent.prototype.render;
+
+        await runtime.sessionStartHandler({}, ctx);
+        expect(FooterComponent.prototype.render).not.toBe(originalRender);
+
+        await runtime.sessionShutdownHandler({}, ctx);
+        expect(FooterComponent.prototype.render).toBe(originalRender);
     });
 });

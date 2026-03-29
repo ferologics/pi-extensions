@@ -2,13 +2,14 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { Api, Model } from "@mariozechner/pi-ai";
-import { FooterComponent, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { type ExtensionAPI, FooterComponent } from "@mariozechner/pi-coding-agent";
 import type { KeyId } from "@mariozechner/pi-tui";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 
 export type Verbosity = "low" | "medium" | "high";
 
 export type VerbosityConfig = {
+    showIndicator: boolean;
     models: Record<string, Verbosity>;
 };
 
@@ -17,12 +18,14 @@ type JsonObject = Record<string, unknown>;
 type SupportedVerbosityApi = "openai-responses" | "openai-codex-responses" | "azure-openai-responses";
 
 const DEFAULT_CONFIG: VerbosityConfig = {
+    showIndicator: false,
     models: {},
 };
 
-const STATUS_KEY = "verbosity";
-const MACOS_SHORTCUT = "alt+v";
-const OTHER_SHORTCUT = "ctrl+alt+v";
+const MACOS_CYCLE_SHORTCUT = "alt+v";
+const OTHER_CYCLE_SHORTCUT = "ctrl+alt+v";
+const MACOS_TOGGLE_INDICATOR_SHORTCUT = "alt+shift+v";
+const OTHER_TOGGLE_INDICATOR_SHORTCUT = "ctrl+alt+shift+v";
 const SUPPORTED_APIS = new Set<SupportedVerbosityApi>([
     "openai-responses",
     "openai-codex-responses",
@@ -31,6 +34,13 @@ const SUPPORTED_APIS = new Set<SupportedVerbosityApi>([
 
 let originalFooterRender: ((this: FooterComponent, width: number) => string[]) | undefined;
 let footerPatched = false;
+
+function createDefaultConfig(): VerbosityConfig {
+    return {
+        showIndicator: DEFAULT_CONFIG.showIndicator,
+        models: {},
+    };
+}
 
 export function getGlobalConfigPath(): string {
     return path.join(os.homedir(), ".pi", "agent", "verbosity.json");
@@ -55,7 +65,7 @@ export function normalizeVerbosity(value: unknown): Verbosity | undefined {
 
 export function parseConfig(value: unknown): VerbosityConfig {
     if (!isObject(value)) {
-        return { ...DEFAULT_CONFIG };
+        return createDefaultConfig();
     }
 
     const parsedModels = isObject(value.models) ? value.models : {};
@@ -71,7 +81,10 @@ export function parseConfig(value: unknown): VerbosityConfig {
         models[key] = verbosity;
     }
 
-    return { models };
+    return {
+        showIndicator: typeof value.showIndicator === "boolean" ? value.showIndicator : DEFAULT_CONFIG.showIndicator,
+        models,
+    };
 }
 
 export async function loadConfig(configPath = getGlobalConfigPath()): Promise<VerbosityConfig> {
@@ -81,12 +94,12 @@ export async function loadConfig(configPath = getGlobalConfigPath()): Promise<Ve
     } catch (error) {
         const code = (error as { code?: string }).code;
         if (code === "ENOENT") {
-            return { ...DEFAULT_CONFIG };
+            return createDefaultConfig();
         }
 
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`[pi-verbosity-control] Failed to read ${configPath}: ${message}`);
-        return { ...DEFAULT_CONFIG };
+        return createDefaultConfig();
     }
 }
 
@@ -140,10 +153,18 @@ export function cycleVerbosity(current: Verbosity | undefined): Verbosity {
 
 export function setModelVerbosity(config: VerbosityConfig, key: string, verbosity: Verbosity): VerbosityConfig {
     return {
+        showIndicator: config.showIndicator,
         models: {
             ...config.models,
             [key]: verbosity,
         },
+    };
+}
+
+export function setIndicatorVisibility(config: VerbosityConfig, showIndicator: boolean): VerbosityConfig {
+    return {
+        showIndicator,
+        models: { ...config.models },
     };
 }
 
@@ -253,16 +274,29 @@ function unpatchFooterRender(): void {
     originalFooterRender = undefined;
 }
 
-function getShortcut(): KeyId {
-    return process.platform === "darwin" ? (MACOS_SHORTCUT as KeyId) : (OTHER_SHORTCUT as KeyId);
+function getCycleShortcut(): KeyId {
+    return process.platform === "darwin" ? (MACOS_CYCLE_SHORTCUT as KeyId) : (OTHER_CYCLE_SHORTCUT as KeyId);
+}
+
+function getToggleIndicatorShortcut(): KeyId {
+    return process.platform === "darwin"
+        ? (MACOS_TOGGLE_INDICATOR_SHORTCUT as KeyId)
+        : (OTHER_TOGGLE_INDICATOR_SHORTCUT as KeyId);
 }
 
 export default function piVerbosityControlExtension(pi: ExtensionAPI): void {
-    let activeConfig: VerbosityConfig = { ...DEFAULT_CONFIG };
+    let activeConfig = createDefaultConfig();
 
-    patchFooterRender(() => activeConfig);
+    const syncFooterIndicator = () => {
+        if (activeConfig.showIndicator) {
+            patchFooterRender(() => activeConfig);
+            return;
+        }
 
-    pi.registerShortcut(getShortcut(), {
+        unpatchFooterRender();
+    };
+
+    pi.registerShortcut(getCycleShortcut(), {
         description: "Cycle response verbosity for the current model",
         handler: async (ctx) => {
             const model = ctx.model;
@@ -283,11 +317,10 @@ export default function piVerbosityControlExtension(pi: ExtensionAPI): void {
             const resolved = resolveConfiguredVerbosity(activeConfig, model);
             const nextVerbosity = cycleVerbosity(resolved.verbosity);
             const configKey = resolved.key ?? getExactModelKey(model);
-
-            activeConfig = setModelVerbosity(activeConfig, configKey, nextVerbosity);
+            const nextConfig = setModelVerbosity(activeConfig, configKey, nextVerbosity);
 
             try {
-                await saveConfig(activeConfig);
+                await saveConfig(nextConfig);
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
                 if (ctx.hasUI) {
@@ -296,23 +329,44 @@ export default function piVerbosityControlExtension(pi: ExtensionAPI): void {
                 return;
             }
 
+            activeConfig = nextConfig;
+
             if (ctx.hasUI) {
                 ctx.ui.notify(`Verbosity for ${configKey} → ${nextVerbosity}`, "info");
             }
         },
     });
 
-    pi.on("session_start", async (_event, ctx) => {
-        activeConfig = await loadConfig();
-        if (ctx.hasUI) {
-            ctx.ui.setStatus(STATUS_KEY, undefined);
-        }
+    pi.registerShortcut(getToggleIndicatorShortcut(), {
+        description: "Toggle verbosity indicator visibility",
+        handler: async (ctx) => {
+            const nextConfig = setIndicatorVisibility(activeConfig, !activeConfig.showIndicator);
+
+            try {
+                await saveConfig(nextConfig);
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                if (ctx.hasUI) {
+                    ctx.ui.notify(`Failed to save verbosity config: ${message}`, "error");
+                }
+                return;
+            }
+
+            activeConfig = nextConfig;
+            syncFooterIndicator();
+
+            if (ctx.hasUI) {
+                ctx.ui.notify(`Verbosity indicator ${activeConfig.showIndicator ? "shown" : "hidden"}.`, "info");
+            }
+        },
     });
 
-    pi.on("session_shutdown", async (_event, ctx) => {
-        if (ctx.hasUI) {
-            ctx.ui.setStatus(STATUS_KEY, undefined);
-        }
+    pi.on("session_start", async () => {
+        activeConfig = await loadConfig();
+        syncFooterIndicator();
+    });
+
+    pi.on("session_shutdown", async () => {
         unpatchFooterRender();
     });
 
