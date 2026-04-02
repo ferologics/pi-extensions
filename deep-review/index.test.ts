@@ -20,7 +20,16 @@ let splitArgs: (input: string, platform?: NodeJS.Platform) => string[];
 let parseOptions: (
     rawArgs: string,
     cwd: string,
-) => { ok: boolean; message?: string; options?: { contextPackBudget?: number; contextPackPath?: string } };
+) => {
+    ok: boolean;
+    message?: string;
+    options?: {
+        contextPackBudget?: number;
+        contextPackPath?: string;
+        model?: string;
+        verbosity?: string;
+    };
+};
 let buildContextPackBudgetPlan: (
     options: { query: string; model: string; contextPackBudget?: number },
     model?: any,
@@ -66,6 +75,25 @@ describe("parseOptions", () => {
         const parsed = parseOptions('positional --query "flag"', "/tmp");
         expect(parsed.ok).toBe(false);
         expect(parsed.message).toContain("both positionally and via --query");
+    });
+
+    it("defaults to high verbosity on gpt-5.4-pro", () => {
+        const parsed = parseOptions('"review this"', "/tmp");
+        expect(parsed.ok).toBe(true);
+        expect(parsed.options?.model).toBe("gpt-5.4-pro");
+        expect(parsed.options?.verbosity).toBe("high");
+    });
+
+    it("keeps medium verbosity defaults on non-gpt-5.4-pro models", () => {
+        const parsed = parseOptions('"review this" --model gpt-5.2', "/tmp");
+        expect(parsed.ok).toBe(true);
+        expect(parsed.options?.verbosity).toBe("medium");
+    });
+
+    it("preserves explicit verbosity overrides regardless of model", () => {
+        const parsed = parseOptions('"review this" --verbosity low --model gpt-5.4-pro', "/tmp");
+        expect(parsed.ok).toBe(true);
+        expect(parsed.options?.verbosity).toBe("low");
     });
 
     it("parses --budget and stores contextPackBudget", () => {

@@ -122,14 +122,24 @@ A query is required, either as positional text or via \`--query\`.
 - \`--context-pack <path>\`  Skip context-pack generation and use an existing pack file
 - \`--budget <tokens>\`      Override the auto-sized context-pack budget target (example: \`180000\`; cannot combine with \`--context-pack\`)
 - \`--model <id>\`           Responses model (default: \`gpt-5.4-pro\`)
+  - Common ids: \`gpt-5.4-pro\`, \`gpt-5.4\`, \`gpt-5.2\`, \`gpt-4.1\`
 - \`--effort <level>\`       \`minimal|low|medium|high|xhigh\` (default: \`xhigh\`)
-- \`--verbosity <level>\`    \`low|medium|high\` (default: \`medium\`)
+- \`--verbosity <level>\`    \`low|medium|high\` (default: \`high\` on \`gpt-5.4-pro\`, otherwise \`medium\`)
 - \`--summary <mode>\`       \`auto|detailed|null\` (default: \`auto\`)
 - \`--no-summary\`           Shortcut for \`--summary null\`
 - \`--org <id>\`             Override \`openai-organization\` header
 - \`--project-id <id>\`      Override \`OpenAI-Project\` header
 - \`--debug\`                Save payload + stream events to /tmp for parity debugging
 - \`--help\`                 Show this help
+
+## Model selection
+
+Use \`--model <id>\`, for example:
+
+- \`/deep-review "review this" --model gpt-5.4\`
+- \`/deep-review "review this" --model gpt-5.4-pro\`
+
+Model availability depends on the OpenAI account / token backing the request.
 
 ## Stop command
 
@@ -379,6 +389,19 @@ function normalizeSummary(value: string): ReasoningSummary | undefined {
     return undefined;
 }
 
+function normalizeDeepReviewModelId(modelId: string): string {
+    const normalized = modelId.trim().toLowerCase();
+    if (!normalized.includes("/")) {
+        return normalized;
+    }
+
+    return normalized.slice(normalized.lastIndexOf("/") + 1);
+}
+
+function defaultVerbosityForModel(modelId: string): TextVerbosity {
+    return normalizeDeepReviewModelId(modelId) === "gpt-5.4-pro" ? "high" : "medium";
+}
+
 export function parseOptions(rawArgs: string, cwd: string): ParseResult {
     const tokens = splitArgs(rawArgs);
 
@@ -387,12 +410,13 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
         projectDir: cwd,
         model: "gpt-5.4-pro",
         effort: "xhigh",
-        verbosity: "medium",
+        verbosity: defaultVerbosityForModel("gpt-5.4-pro"),
         summary: "auto",
         debug: false,
     };
 
     const positional: string[] = [];
+    let explicitVerbosity = false;
 
     const takeValue = (index: number): string | null => {
         const value = tokens[index + 1];
@@ -474,6 +498,7 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
                 if (!["low", "medium", "high"].includes(value)) {
                     return { ok: false, message: `Invalid verbosity: ${value}` };
                 }
+                explicitVerbosity = true;
                 options.verbosity = value as TextVerbosity;
                 i++;
                 break;
@@ -535,6 +560,10 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
     }
 
     options.query = options.query.trim();
+    if (!explicitVerbosity) {
+        options.verbosity = defaultVerbosityForModel(options.model);
+    }
+
     if (!options.query) {
         return {
             ok: false,

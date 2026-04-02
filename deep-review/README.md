@@ -47,7 +47,7 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 - Model: `gpt-5.4-pro`
 - Reasoning effort: `xhigh`
 - Summary: `auto`
-- Verbosity: `medium`
+- Verbosity: `high` on `gpt-5.4-pro`, otherwise `medium`
 - Context-pack budget target: auto-sized from the selected model
 - Base ref: auto-detected (`origin/main`, `origin/master`, `main`, `master`, `HEAD~1`)
 
@@ -58,9 +58,9 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 - `--base <ref>`
 - `--context-pack <path>` (skip generation and use existing context pack)
 - `--budget <tokens>` (override the auto-sized context-pack budget target; cannot combine with `--context-pack`)
-- `--model <id>`
+- `--model <id>` (common ids: `gpt-5.4-pro`, `gpt-5.4`, `gpt-5.2`, `gpt-4.1`)
 - `--effort minimal|low|medium|high|xhigh`
-- `--verbosity low|medium|high`
+- `--verbosity low|medium|high` (default: `high` on `gpt-5.4-pro`, otherwise `medium`)
 - `--summary auto|detailed|null`
 - `--no-summary` (shortcut for `--summary null`)
 - `--org <id>`
@@ -72,7 +72,11 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 
 ```text
 /deep-review "find bugs and regressions"
+/deep-review "find bugs and regressions" --model gpt-5.4
+/deep-review "find bugs and regressions" --model gpt-5.4-pro
 ```
+
+Model availability depends on the OpenAI account / token backing the request.
 
 ## Architecture (high level)
 
