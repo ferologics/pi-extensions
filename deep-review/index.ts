@@ -1,12 +1,14 @@
+import { Buffer } from "node:buffer";
 import { spawn } from "node:child_process";
 import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { calculateCost, getModel, type Model, type Usage } from "@mariozechner/pi-ai";
-import { getMarkdownTheme, type ExtensionAPI, type ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
-import { Markdown } from "@mariozechner/pi-tui";
+import { calculateCost, getModel, type Model, type Usage } from "@earendil-works/pi-ai";
+import { getMarkdownTheme, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { Markdown } from "@earendil-works/pi-tui";
 import { buildContextPack, type ContextPackOptions, type ContextPackReportV1 } from "./context-pack/index.js";
 
+type DeepReviewProvider = "openai" | "openai-codex";
 type ReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh";
 type TextVerbosity = "low" | "medium" | "high";
 type ReasoningSummary = "auto" | "detailed" | null;
@@ -17,6 +19,7 @@ type DeepReviewOptions = {
     baseRef?: string;
     contextPackPath?: string;
     contextPackBudget?: number;
+    provider: DeepReviewProvider;
     model: string;
     effort: ReasoningEffort;
     verbosity: TextVerbosity;
@@ -40,6 +43,7 @@ export type ContextPackBudgetPlan = {
     modelContextWindow?: number;
     modelHardInputBudget?: number;
     modelMaxTokens?: number;
+    modelCappedRequestedBudget?: number;
     modelId?: string;
     modelProvider?: string;
     modelRatioInputBudget?: number;
@@ -65,6 +69,11 @@ type ActiveRun = {
 
 type ResponsesResult = {
     responseId?: string;
+    request: {
+        provider: DeepReviewProvider;
+        endpoint: string;
+        tokenSource: string;
+    };
     answer: string;
     thinking: string;
     usage: {
@@ -83,6 +92,14 @@ type ClipboardResult = {
     copied: boolean;
     method?: string;
     error?: string;
+};
+
+type ResponsesRequestRoute = {
+    provider: DeepReviewProvider;
+    endpoint: string;
+    headers: Record<string, string>;
+    source: string;
+    model?: Model<any>;
 };
 
 type OutputArtifacts = {
@@ -106,7 +123,7 @@ type LiveState = {
 
 const HELP_TEXT = `# /deep-review
 
-Build a PR context pack, then send a direct OpenAI Responses API request.
+Build a PR context pack, then send a direct Responses request through OpenAI Codex or OpenAI Platform.
 
 ## Usage
 
@@ -121,23 +138,25 @@ A query is required, either as positional text or via \`--query\`.
 - \`--base <ref>\`           Base ref for context pack diff (default: auto-detect)
 - \`--context-pack <path>\`  Skip context-pack generation and use an existing pack file
 - \`--budget <tokens>\`      Override the auto-sized context-pack budget target (example: \`180000\`; cannot combine with \`--context-pack\`)
-- \`--model <id>\`           Responses model (default: \`gpt-5.4-pro\`)
-  - Common ids: \`gpt-5.4-pro\`, \`gpt-5.4\`, \`gpt-5.2\`, \`gpt-4.1\`
+- \`--provider <name>\`      \`openai-codex|openai\` (default: \`openai-codex\`)
+- \`--model <id>\`           Responses model (default: \`gpt-5.5\`)
+  - Common ids: \`gpt-5.5\`, \`gpt-5.4\`, \`gpt-5.2\`, \`gpt-5.5-pro\`, \`gpt-5.4-pro\`, \`gpt-4.1\`
 - \`--effort <level>\`       \`minimal|low|medium|high|xhigh\` (default: \`xhigh\`)
-- \`--verbosity <level>\`    \`low|medium|high\` (default: \`high\` on \`gpt-5.4-pro\`, otherwise \`medium\`)
+- \`--verbosity <level>\`    \`low|medium|high\` (default: \`high\` on pro models, otherwise \`medium\`)
 - \`--summary <mode>\`       \`auto|detailed|null\` (default: \`auto\`)
 - \`--no-summary\`           Shortcut for \`--summary null\`
-- \`--org <id>\`             Override \`openai-organization\` header
-- \`--project-id <id>\`      Override \`OpenAI-Project\` header
+- \`--org <id>\`             Override \`openai-organization\` header (OpenAI Platform only)
+- \`--project-id <id>\`      Override \`OpenAI-Project\` header (OpenAI Platform only)
 - \`--debug\`                Save payload + stream events to /tmp for parity debugging
 - \`--help\`                 Show this help
 
 ## Model selection
 
-Use \`--model <id>\`, for example:
+Use \`--provider <name>\` and \`--model <id>\`, for example:
 
+- \`/deep-review "review this"\`
 - \`/deep-review "review this" --model gpt-5.4\`
-- \`/deep-review "review this" --model gpt-5.4-pro\`
+- \`/deep-review "review this" --provider openai --model gpt-5.5-pro\`
 
 Model availability depends on the OpenAI account / token backing the request.
 
@@ -147,6 +166,7 @@ Model availability depends on the OpenAI account / token backing the request.
 
 ## Requirement
 
+- By default, authenticate with \`/login openai-codex\` (ChatGPT Plus/Pro). Use \`--provider openai\` with \`OPENAI_API_KEY\` for Platform.
 - \`tokencount\` must be installed and available in \`PATH\`.
 - If \`--context-pack <path>\` is provided, deep-review uses that file directly and skips pack generation.
 `;
@@ -156,6 +176,18 @@ const ANSI_REGEX = new RegExp(String.raw`\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0
 const WIDGET_TICK_MS = 250;
 const SPINNER_FRAME_MS = 100;
 const MARKDOWN_THEME = getMarkdownTheme();
+const DEFAULT_DEEP_REVIEW_PROVIDER: DeepReviewProvider = "openai-codex";
+const DEFAULT_DEEP_REVIEW_MODEL = "gpt-5.5";
+const DEEP_REVIEW_INSTRUCTIONS = [
+    "You are a meticulous senior code reviewer.",
+    "Use the supplied context pack as the source of truth, then answer the user's review request.",
+    "Prioritize correctness, regressions, security, data-loss risks, and missing tests.",
+    "Call out uncertainty and omitted coverage explicitly instead of pretending the review is exhaustive.",
+].join("\n");
+const HIGH_VERBOSITY_MODEL_IDS = new Set(["gpt-5.4-pro", "gpt-5.5-pro"]);
+const OPENAI_RESPONSES_BASE_URL = "https://api.openai.com/v1";
+const OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
+const CHATGPT_ACCOUNT_ID_CLAIM = "https://api.openai.com/auth";
 
 function stripAnsi(value: string): string {
     return value.replace(ANSI_REGEX, "");
@@ -293,6 +325,7 @@ async function writeOutputArtifacts(
     const metadata = {
         createdAt: new Date().toISOString(),
         query: options.query,
+        provider: options.provider,
         model: options.model,
         effort: options.effort,
         summary: options.summary,
@@ -304,6 +337,7 @@ async function writeOutputArtifacts(
         totalDurationMs,
         usage: responses.usage,
         responseId: responses.responseId,
+        request: responses.request,
         debugDir,
     };
 
@@ -399,7 +433,7 @@ function normalizeDeepReviewModelId(modelId: string): string {
 }
 
 function defaultVerbosityForModel(modelId: string): TextVerbosity {
-    return normalizeDeepReviewModelId(modelId) === "gpt-5.4-pro" ? "high" : "medium";
+    return HIGH_VERBOSITY_MODEL_IDS.has(normalizeDeepReviewModelId(modelId)) ? "high" : "medium";
 }
 
 export function parseOptions(rawArgs: string, cwd: string): ParseResult {
@@ -408,9 +442,10 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
     const options: DeepReviewOptions = {
         query: "",
         projectDir: cwd,
-        model: "gpt-5.4-pro",
+        provider: DEFAULT_DEEP_REVIEW_PROVIDER,
+        model: DEFAULT_DEEP_REVIEW_MODEL,
         effort: "xhigh",
-        verbosity: defaultVerbosityForModel("gpt-5.4-pro"),
+        verbosity: defaultVerbosityForModel(DEFAULT_DEEP_REVIEW_MODEL),
         summary: "auto",
         debug: false,
     };
@@ -472,6 +507,16 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
                 }
 
                 options.contextPackBudget = parsedBudget;
+                i++;
+                break;
+            }
+            case "--provider": {
+                const value = takeValue(i);
+                if (!value) return { ok: false, message: `${token} requires a value` };
+                if (!isDeepReviewProvider(value)) {
+                    return { ok: false, message: `Invalid provider: ${value}` };
+                }
+                options.provider = value;
                 i++;
                 break;
             }
@@ -721,6 +766,24 @@ function findSseBoundary(buffer: string): { index: number; length: number } | nu
     return rnIndex < nIndex ? { index: rnIndex, length: 4 } : { index: nIndex, length: 2 };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function formatSseErrorEvent(event: SseEvent): string {
+    const error = event.error;
+
+    if (isRecord(error)) {
+        const code = typeof error.code === "string" ? error.code : undefined;
+        const message = typeof error.message === "string" ? error.message : undefined;
+        const param = typeof error.param === "string" ? error.param : undefined;
+
+        return [code, message, param ? `param=${param}` : undefined].filter(Boolean).join(" · ");
+    }
+
+    return typeof event.message === "string" ? event.message : JSON.stringify(event);
+}
+
 export async function* parseSseStream(body: ReadableStream<Uint8Array>): AsyncGenerator<SseEvent, void, void> {
     const reader = body.getReader();
     const decoder = new TextDecoder();
@@ -771,31 +834,175 @@ export async function* parseSseStream(body: ReadableStream<Uint8Array>): AsyncGe
     }
 }
 
+function isDeepReviewProvider(value: string): value is DeepReviewProvider {
+    return value === "openai" || value === "openai-codex";
+}
+
 function hasAuthorizationHeader(headers: Record<string, string>): boolean {
     return Object.keys(headers).some((key) => key.toLowerCase() === "authorization");
 }
 
-async function resolveRequestHeaders(
-    ctx: ExtensionCommandContext,
-    modelId: string,
-): Promise<{ headers: Record<string, string>; source: string }> {
-    const fromEnv = process.env.OPENAI_API_KEY?.trim();
-    if (fromEnv) {
-        return {
-            headers: { Authorization: `Bearer ${fromEnv}` },
-            source: "OPENAI_API_KEY",
-        };
+function getAuthorizationBearer(headers: Record<string, string> | undefined): string | undefined {
+    if (!headers) {
+        return undefined;
     }
 
-    const modelCandidates = [
-        getModel("openai", modelId as never),
-        getModel("openai-codex", modelId as never),
-        getModel("openai", "gpt-5" as never),
-        getModel("openai", "gpt-4.1" as never),
-    ].filter(Boolean);
+    for (const [key, value] of Object.entries(headers)) {
+        if (key.toLowerCase() !== "authorization") {
+            continue;
+        }
 
-    for (const candidate of modelCandidates) {
-        const auth = await ctx.modelRegistry.getApiKeyAndHeaders(candidate as unknown as Model<any>);
+        const match = value.match(/^Bearer\s+(.+)$/i);
+        return (match?.[1] ?? value).trim() || undefined;
+    }
+
+    return undefined;
+}
+
+function withoutAuthorizationHeader(headers: Record<string, string> | undefined): Record<string, string> {
+    const result = { ...(headers ?? {}) };
+    for (const key of Object.keys(result)) {
+        if (key.toLowerCase() === "authorization") {
+            delete result[key];
+        }
+    }
+    return result;
+}
+
+function resolveRequestModel(
+    modelRegistry: ExtensionCommandContext["modelRegistry"],
+    provider: DeepReviewProvider,
+    modelId: string,
+): Model<any> | undefined {
+    return (
+        (modelRegistry.find(provider, modelId) as Model<any> | undefined) ??
+        (getModel(provider, modelId as never) as Model<any> | undefined)
+    );
+}
+
+function uniqueModelCandidates(candidates: Array<Model<any> | undefined>): Model<any>[] {
+    const seen = new Set<string>();
+    const result: Model<any>[] = [];
+
+    for (const candidate of candidates) {
+        if (!candidate) {
+            continue;
+        }
+
+        const key = `${candidate.provider}/${candidate.id}`;
+        if (seen.has(key)) {
+            continue;
+        }
+
+        seen.add(key);
+        result.push(candidate);
+    }
+
+    return result;
+}
+
+function getAuthModelCandidates(
+    modelRegistry: ExtensionCommandContext["modelRegistry"],
+    provider: DeepReviewProvider,
+    modelId: string,
+): Model<any>[] {
+    const fallbackIds =
+        provider === "openai-codex"
+            ? [modelId, DEFAULT_DEEP_REVIEW_MODEL, "gpt-5.4", "gpt-5.2"]
+            : [modelId, DEFAULT_DEEP_REVIEW_MODEL, "gpt-5.5-pro", "gpt-5", "gpt-4.1"];
+
+    return uniqueModelCandidates(
+        fallbackIds.flatMap((id) => [
+            modelRegistry.find(provider, id) as Model<any> | undefined,
+            getModel(provider, id as never) as Model<any> | undefined,
+        ]),
+    );
+}
+
+function resolveOpenAiResponsesEndpoint(model?: Model<any>): string {
+    const raw = model?.baseUrl?.trim() || OPENAI_RESPONSES_BASE_URL;
+    const normalized = raw.replace(/\/+$/, "");
+    return normalized.endsWith("/responses") ? normalized : `${normalized}/responses`;
+}
+
+function resolveCodexResponsesEndpoint(model?: Model<any>): string {
+    const raw = model?.baseUrl?.trim() || OPENAI_CODEX_BASE_URL;
+    const normalized = raw.replace(/\/+$/, "");
+    if (normalized.endsWith("/codex/responses")) {
+        return normalized;
+    }
+    if (normalized.endsWith("/codex")) {
+        return `${normalized}/responses`;
+    }
+    return `${normalized}/codex/responses`;
+}
+
+function extractChatGptAccountId(token: string): string {
+    try {
+        const payloadPart = token.split(".")[1];
+        if (!payloadPart) {
+            throw new Error("missing JWT payload");
+        }
+
+        const normalizedPayload = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+        const payload = JSON.parse(Buffer.from(normalizedPayload, "base64").toString("utf8")) as {
+            [CHATGPT_ACCOUNT_ID_CLAIM]?: { chatgpt_account_id?: unknown };
+        };
+        const accountId = payload[CHATGPT_ACCOUNT_ID_CLAIM]?.chatgpt_account_id;
+        if (typeof accountId !== "string" || accountId.length === 0) {
+            throw new Error("missing chatgpt_account_id");
+        }
+
+        return accountId;
+    } catch {
+        throw new Error(
+            "OpenAI Codex auth requires a ChatGPT OAuth token with chatgpt-account-id. Run `/login openai-codex`, or use `--provider openai` with OPENAI_API_KEY.",
+        );
+    }
+}
+
+function buildCodexHeaders(
+    authHeaders: Record<string, string> | undefined,
+    token: string,
+    accept: string,
+): Record<string, string> {
+    const headers = withoutAuthorizationHeader(authHeaders);
+    headers.Authorization = `Bearer ${token}`;
+    headers["chatgpt-account-id"] = extractChatGptAccountId(token);
+    headers.originator = "pi";
+    if (!Object.keys(headers).some((key) => key.toLowerCase() === "user-agent")) {
+        headers["User-Agent"] = "pi deep-review";
+    }
+    headers["OpenAI-Beta"] = "responses=experimental";
+    headers.Accept = accept;
+    headers["Content-Type"] = "application/json";
+    return headers;
+}
+
+async function resolveOpenAiPlatformRoute(
+    ctx: ExtensionCommandContext,
+    options: Pick<DeepReviewOptions, "model" | "organization" | "projectId">,
+    accept: string,
+): Promise<ResponsesRequestRoute> {
+    const model = resolveRequestModel(ctx.modelRegistry, "openai", options.model);
+    const fromEnv = process.env.OPENAI_API_KEY?.trim();
+    if (fromEnv) {
+        const headers: Record<string, string> = { Authorization: `Bearer ${fromEnv}` };
+        return withOpenAiPlatformHeaders(
+            {
+                provider: "openai",
+                endpoint: resolveOpenAiResponsesEndpoint(model),
+                headers,
+                source: "OPENAI_API_KEY",
+                model,
+            },
+            options,
+            accept,
+        );
+    }
+
+    for (const candidate of getAuthModelCandidates(ctx.modelRegistry, "openai", options.model)) {
+        const auth = await ctx.modelRegistry.getApiKeyAndHeaders(candidate);
         if (!auth.ok) {
             continue;
         }
@@ -806,35 +1013,50 @@ async function resolveRequestHeaders(
         }
 
         if (hasAuthorizationHeader(headers)) {
-            return {
-                headers,
-                source: `modelRegistry/${candidate.provider}/${candidate.id}`,
-            };
+            return withOpenAiPlatformHeaders(
+                {
+                    provider: "openai",
+                    endpoint: resolveOpenAiResponsesEndpoint(model ?? candidate),
+                    headers,
+                    source: `modelRegistry/${candidate.provider}/${candidate.id}`,
+                    model: model ?? candidate,
+                },
+                options,
+                accept,
+            );
         }
     }
 
-    const sessionLike = process.env.OPENAI_SESSION_TOKEN?.trim() ?? process.env.OPENAI_BEARER_TOKEN?.trim();
-    if (sessionLike) {
-        return {
-            headers: { Authorization: `Bearer ${sessionLike}` },
-            source: "OPENAI_SESSION_TOKEN/OPENAI_BEARER_TOKEN",
-        };
+    const bearer = process.env.OPENAI_BEARER_TOKEN?.trim();
+    if (bearer) {
+        return withOpenAiPlatformHeaders(
+            {
+                provider: "openai",
+                endpoint: resolveOpenAiResponsesEndpoint(model),
+                headers: { Authorization: `Bearer ${bearer}` },
+                source: "OPENAI_BEARER_TOKEN",
+                model,
+            },
+            options,
+            accept,
+        );
     }
 
-    throw new Error("No OpenAI token found. Set OPENAI_API_KEY (recommended) or OPENAI_SESSION_TOKEN.");
+    throw new Error(
+        "No OpenAI Platform token found. Set OPENAI_API_KEY or choose `--provider openai-codex` after `/login openai-codex`.",
+    );
 }
 
-async function buildResponsesHeaders(
-    ctx: ExtensionCommandContext,
-    options: Pick<DeepReviewOptions, "model" | "organization" | "projectId">,
+function withOpenAiPlatformHeaders(
+    route: ResponsesRequestRoute,
+    options: Pick<DeepReviewOptions, "organization" | "projectId">,
     accept: string,
-): Promise<{ headers: Record<string, string>; source: string }> {
-    const { headers: authHeaders, source } = await resolveRequestHeaders(ctx, options.model);
+): ResponsesRequestRoute {
     const organization = options.organization ?? process.env.OPENAI_ORGANIZATION ?? process.env.OPENAI_ORG_ID;
     const projectId = options.projectId ?? process.env.OPENAI_PROJECT ?? process.env.OPENAI_PROJECT_ID;
 
     const headers: Record<string, string> = {
-        ...authHeaders,
+        ...route.headers,
         "Content-Type": "application/json",
         Accept: accept,
         "openai-beta": "responses=v1",
@@ -848,7 +1070,122 @@ async function buildResponsesHeaders(
         headers["OpenAI-Project"] = projectId;
     }
 
-    return { headers, source };
+    return { ...route, headers };
+}
+
+async function resolveOpenAiCodexRoute(
+    ctx: ExtensionCommandContext,
+    options: Pick<DeepReviewOptions, "model">,
+    accept: string,
+): Promise<ResponsesRequestRoute> {
+    const model = resolveRequestModel(ctx.modelRegistry, "openai-codex", options.model);
+
+    for (const candidate of getAuthModelCandidates(ctx.modelRegistry, "openai-codex", options.model)) {
+        const auth = await ctx.modelRegistry.getApiKeyAndHeaders(candidate);
+        if (!auth.ok) {
+            continue;
+        }
+
+        const token = auth.apiKey?.trim() || getAuthorizationBearer(auth.headers);
+        if (!token) {
+            continue;
+        }
+
+        return {
+            provider: "openai-codex",
+            endpoint: resolveCodexResponsesEndpoint(model ?? candidate),
+            headers: buildCodexHeaders(auth.headers, token, accept),
+            source: `modelRegistry/${candidate.provider}/${candidate.id}`,
+            model: model ?? candidate,
+        };
+    }
+
+    const sessionLike = process.env.OPENAI_SESSION_TOKEN?.trim() ?? process.env.OPENAI_BEARER_TOKEN?.trim();
+    if (sessionLike) {
+        return {
+            provider: "openai-codex",
+            endpoint: resolveCodexResponsesEndpoint(model),
+            headers: buildCodexHeaders(undefined, sessionLike, accept),
+            source: "OPENAI_SESSION_TOKEN/OPENAI_BEARER_TOKEN",
+            model,
+        };
+    }
+
+    throw new Error(
+        "No OpenAI Codex token found. Run `/login openai-codex` or set OPENAI_SESSION_TOKEN/OPENAI_BEARER_TOKEN.",
+    );
+}
+
+async function resolveResponsesRoute(
+    ctx: ExtensionCommandContext,
+    options: Pick<DeepReviewOptions, "model" | "organization" | "projectId" | "provider">,
+    accept: string,
+): Promise<ResponsesRequestRoute> {
+    return options.provider === "openai-codex"
+        ? resolveOpenAiCodexRoute(ctx, options, accept)
+        : resolveOpenAiPlatformRoute(ctx, options, accept);
+}
+
+function resolveReasoningEffort(model: Model<any> | undefined, effort: ReasoningEffort): string {
+    const mappedEffort = model?.thinkingLevelMap?.[effort];
+    if (mappedEffort === null) {
+        const modelLabel = model ? `${model.provider}/${model.id}` : "selected model";
+        throw new Error(`Reasoning effort ${effort} is not supported by ${modelLabel}`);
+    }
+    return mappedEffort ?? effort;
+}
+
+export function buildResponsesPayload(
+    options: DeepReviewOptions,
+    contextText: string,
+    route: ResponsesRequestRoute,
+): Record<string, unknown> {
+    const input = [
+        {
+            role: "user",
+            content: [{ type: "input_text", text: contextText }],
+        },
+        {
+            role: "user",
+            content: [{ type: "input_text", text: options.query }],
+        },
+    ];
+
+    const reasoning = {
+        effort: resolveReasoningEffort(route.model, options.effort),
+        summary: options.summary,
+    };
+
+    if (route.provider === "openai-codex") {
+        return {
+            model: options.model,
+            input,
+            instructions: DEEP_REVIEW_INSTRUCTIONS,
+            text: {
+                verbosity: options.verbosity,
+            },
+            reasoning,
+            include: ["reasoning.encrypted_content"],
+            tool_choice: "auto",
+            parallel_tool_calls: true,
+            stream: true,
+            store: false,
+        };
+    }
+
+    return {
+        model: options.model,
+        input,
+        instructions: DEEP_REVIEW_INSTRUCTIONS,
+        tools: [],
+        text: {
+            format: { type: "text" },
+            verbosity: options.verbosity,
+        },
+        reasoning,
+        stream: true,
+        store: false,
+    };
 }
 
 function extractCompletedAnswer(responseObject: any): string {
@@ -883,43 +1220,19 @@ async function streamResponses(
     onEvent: (eventType: string) => void,
 ): Promise<ResponsesResult> {
     const startedAt = Date.now();
-    const { headers, source } = await buildResponsesHeaders(ctx, options, "text/event-stream");
+    const route = await resolveResponsesRoute(ctx, options, "text/event-stream");
+    const payload = buildResponsesPayload(options, contextText, route);
 
-    const payload: Record<string, unknown> = {
-        model: options.model,
-        input: [
-            {
-                role: "user",
-                content: [{ type: "input_text", text: contextText }],
-            },
-            {
-                role: "user",
-                content: [{ type: "input_text", text: options.query }],
-            },
-        ],
-        tools: [],
-        text: {
-            format: { type: "text" },
-            verbosity: options.verbosity,
-        },
-        reasoning: {
-            effort: options.effort,
-            summary: options.summary,
-        },
-        stream: true,
-        store: false,
-    };
-
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const response = await fetch(route.endpoint, {
         method: "POST",
-        headers,
+        headers: route.headers,
         body: JSON.stringify(payload),
         signal,
     });
 
     if (!response.ok || !response.body) {
         const body = await response.text();
-        throw new Error(`Responses API failed (${response.status}): ${body}`);
+        throw new Error(`${route.provider} Responses API failed (${response.status}): ${body}`);
     }
 
     if (signal.aborted) {
@@ -961,14 +1274,28 @@ async function streamResponses(
             continue;
         }
 
-        if (event.type === "response.completed") {
+        if (
+            event.type === "response.completed" ||
+            event.type === "response.done" ||
+            event.type === "response.incomplete"
+        ) {
             completedResponse = event.response;
             continue;
         }
 
+        if (event.type === "response.failed") {
+            const responseError = (event.response as any)?.error;
+            const message =
+                typeof responseError?.message === "string"
+                    ? responseError.message
+                    : typeof responseError?.code === "string"
+                      ? responseError.code
+                      : JSON.stringify(event);
+            throw new Error(`Responses stream failed: ${message}`);
+        }
+
         if (event.type === "error") {
-            const message = typeof event.message === "string" ? event.message : JSON.stringify(event);
-            throw new Error(`Responses stream error: ${message}`);
+            throw new Error(`Responses stream error: ${formatSseErrorEvent(event)}`);
         }
     }
 
@@ -983,9 +1310,7 @@ async function streamResponses(
     const totalTokens = Number(usagePayload.total_tokens ?? inputTokens + outputTokens);
 
     let estimatedCostUsd: number | undefined;
-    const billingModel =
-        (getModel("openai", options.model as never) as Model<any> | undefined) ??
-        (getModel("openai-codex", options.model as never) as Model<any> | undefined);
+    const billingModel = route.model ?? (getModel(options.provider, options.model as never) as Model<any> | undefined);
 
     if (billingModel) {
         const usage: Usage = {
@@ -1017,9 +1342,11 @@ async function streamResponses(
         debugEvents.unshift(
             JSON.stringify({
                 type: "request_meta",
-                tokenSource: source,
-                hasOrganizationHeader: "openai-organization" in headers,
-                hasProjectHeader: "OpenAI-Project" in headers,
+                provider: route.provider,
+                endpoint: route.endpoint,
+                tokenSource: route.source,
+                hasOrganizationHeader: "openai-organization" in route.headers,
+                hasProjectHeader: "OpenAI-Project" in route.headers,
                 payloadMeta: {
                     model: options.model,
                     effort: options.effort,
@@ -1034,6 +1361,11 @@ async function streamResponses(
 
     return {
         responseId,
+        request: {
+            provider: route.provider,
+            endpoint: route.endpoint,
+            tokenSource: route.source,
+        },
         answer,
         thinking,
         usage: {
@@ -1047,6 +1379,20 @@ async function streamResponses(
         debugEvents,
         debugPayload,
     };
+}
+
+function formatFailureMessage(message: string): string {
+    const lines = [`deep-review failed: ${message}`];
+
+    if (/context_length_exceeded|exceeds the context window/i.test(message)) {
+        lines.push(
+            "",
+            "Context window hint: rerun without a manual `--budget`, or use a lower `--budget` for the selected model.",
+        );
+    }
+
+    lines.push("", "Use /deep-review --help for options.");
+    return lines.join("\n");
 }
 
 function summarizeProvidedContextPackMessage(packPath: string): string {
@@ -1064,6 +1410,9 @@ const DEFAULT_CONTEXT_PACK_BUDGET = 272000;
 const CONTEXT_PACK_INPUT_FRACTION = 0.75;
 const CONTEXT_PACK_MIN_BUDGET = 4096;
 const CONTEXT_PACK_OVERHEAD_RESERVE = 12000;
+const CONTEXT_PACK_CONTEXT_WINDOW_FLOORS: Partial<Record<string, number>> = {
+    "gpt-5.4": 1050000,
+};
 
 function estimateQueryReserveTokens(query: string): number {
     const queryChars = query.trim().length;
@@ -1082,22 +1431,74 @@ function estimateRatioInputBudget(model: BudgetModelMetadata): number {
     return Math.max(CONTEXT_PACK_MIN_BUDGET, Math.floor(safeContextWindow * CONTEXT_PACK_INPUT_FRACTION));
 }
 
-function resolveDeepReviewModel(
-    modelRegistry: ExtensionCommandContext["modelRegistry"],
-    modelId: string,
-): BudgetModelMetadata | undefined {
-    const fromRegistry = (modelRegistry.find("openai", modelId) ?? modelRegistry.find("openai-codex", modelId)) as
-        | BudgetModelMetadata
-        | undefined;
+type ModelBudgetDetails = {
+    effectiveModel: BudgetModelMetadata;
+    modelHardInputBudget: number;
+    modelRatioInputBudget: number;
+};
 
-    if (fromRegistry) {
-        return fromRegistry;
+function normalizeBudgetModelMetadata(model: BudgetModelMetadata): BudgetModelMetadata {
+    if (model.provider !== "openai" && model.provider !== "openai-codex") {
+        return model;
     }
 
-    return (
-        (getModel("openai", modelId as never) as BudgetModelMetadata | undefined) ??
-        (getModel("openai-codex", modelId as never) as BudgetModelMetadata | undefined)
-    );
+    const contextWindowFloor = CONTEXT_PACK_CONTEXT_WINDOW_FLOORS[model.id];
+    if (contextWindowFloor === undefined || model.contextWindow >= contextWindowFloor) {
+        return model;
+    }
+
+    return {
+        ...model,
+        contextWindow: contextWindowFloor,
+    };
+}
+
+function getModelBudgetDetails(model: BudgetModelMetadata): ModelBudgetDetails {
+    const effectiveModel = normalizeBudgetModelMetadata(model);
+    return {
+        effectiveModel,
+        modelHardInputBudget: estimateHardInputBudget(effectiveModel),
+        modelRatioInputBudget: estimateRatioInputBudget(effectiveModel),
+    };
+}
+
+function toBudgetPlanModelFields(
+    details: ModelBudgetDetails,
+): Pick<
+    ContextPackBudgetPlan,
+    | "inputFraction"
+    | "modelContextWindow"
+    | "modelHardInputBudget"
+    | "modelId"
+    | "modelMaxTokens"
+    | "modelProvider"
+    | "modelRatioInputBudget"
+> {
+    return {
+        inputFraction: CONTEXT_PACK_INPUT_FRACTION,
+        modelContextWindow: details.effectiveModel.contextWindow,
+        modelHardInputBudget: details.modelHardInputBudget,
+        modelMaxTokens: details.effectiveModel.maxTokens,
+        modelId: details.effectiveModel.id,
+        modelProvider: details.effectiveModel.provider,
+        modelRatioInputBudget: details.modelRatioInputBudget,
+    };
+}
+
+function resolveDeepReviewModel(
+    modelRegistry: ExtensionCommandContext["modelRegistry"],
+    provider: DeepReviewProvider,
+    modelId: string,
+): BudgetModelMetadata | undefined {
+    const fromRegistry = modelRegistry.find(provider, modelId) as BudgetModelMetadata | undefined;
+
+    if (fromRegistry) {
+        return normalizeBudgetModelMetadata(fromRegistry);
+    }
+
+    const fallback = getModel(provider, modelId as never) as BudgetModelMetadata | undefined;
+
+    return fallback ? normalizeBudgetModelMetadata(fallback) : undefined;
 }
 
 export function buildContextPackBudgetPlan(
@@ -1108,6 +1509,25 @@ export function buildContextPackBudgetPlan(
     const overheadReserveTokens = CONTEXT_PACK_OVERHEAD_RESERVE;
 
     if (options.contextPackBudget !== undefined) {
+        if (model) {
+            const details = getModelBudgetDetails(model);
+            const cappedRequestedBudget = Math.min(options.contextPackBudget, details.modelHardInputBudget);
+
+            return {
+                source: "manual",
+                requestedBudget: options.contextPackBudget,
+                finalBudget: Math.max(
+                    CONTEXT_PACK_MIN_BUDGET,
+                    cappedRequestedBudget - overheadReserveTokens - queryReserveTokens,
+                ),
+                overheadReserveTokens,
+                queryReserveTokens,
+                modelCappedRequestedBudget:
+                    cappedRequestedBudget < options.contextPackBudget ? cappedRequestedBudget : undefined,
+                ...toBudgetPlanModelFields(details),
+            };
+        }
+
         return {
             source: "manual",
             requestedBudget: options.contextPackBudget,
@@ -1121,9 +1541,8 @@ export function buildContextPackBudgetPlan(
     }
 
     if (model) {
-        const modelHardInputBudget = estimateHardInputBudget(model);
-        const modelRatioInputBudget = estimateRatioInputBudget(model);
-        const requestedBudget = Math.min(modelHardInputBudget, modelRatioInputBudget);
+        const details = getModelBudgetDetails(model);
+        const requestedBudget = Math.min(details.modelHardInputBudget, details.modelRatioInputBudget);
 
         return {
             source: "model-auto",
@@ -1134,13 +1553,7 @@ export function buildContextPackBudgetPlan(
             ),
             overheadReserveTokens,
             queryReserveTokens,
-            inputFraction: CONTEXT_PACK_INPUT_FRACTION,
-            modelContextWindow: model.contextWindow,
-            modelHardInputBudget,
-            modelMaxTokens: model.maxTokens,
-            modelId: model.id,
-            modelProvider: model.provider,
-            modelRatioInputBudget,
+            ...toBudgetPlanModelFields(details),
         };
     }
 
@@ -1189,6 +1602,11 @@ function formatContextPackBudgetLines(plan: ContextPackBudgetPlan): string[] {
     }
 
     lines.push(`- Requested pack budget: ${plan.requestedBudget.toLocaleString()} tokens`);
+
+    if (plan.modelCappedRequestedBudget !== undefined) {
+        lines.push(`- Model-capped request budget: ${plan.modelCappedRequestedBudget.toLocaleString()} tokens`);
+    }
+
     lines.push(`- Overhead reserve: ${plan.overheadReserveTokens.toLocaleString()} tokens`);
     lines.push(`- Query reserve: ${plan.queryReserveTokens.toLocaleString()} tokens`);
     lines.push(`- Effective pack budget: ${plan.finalBudget.toLocaleString()} tokens`);
@@ -1353,9 +1771,12 @@ function summarizeFinalMessage(
     const normalizedAnswer = normalizeSectionLikeBoldMarkdown(responses.answer || "");
 
     const lines = [
-        `# Deep review (${options.model})`,
+        `# Deep review (${responses.request.provider}/${options.model})`,
         "",
         `- Query: ${options.query}`,
+        `- Provider: ${responses.request.provider}`,
+        `- Endpoint: ${responses.request.endpoint}`,
+        `- Auth source: ${responses.request.tokenSource}`,
         `- Context pack: \`${packPath}\``,
         options.contextPackPath ? "- Context pack source: provided via `--context-pack`" : undefined,
         options.contextPackBudget !== undefined
@@ -1442,7 +1863,7 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
     });
 
     pi.registerCommand("deep-review", {
-        description: "Build context pack, then stream OpenAI Responses in real time",
+        description: "Build context pack, then stream Responses in real time",
         handler: async (rawArgs, ctx) => {
             if (activeRun) {
                 if (ctx.hasUI) {
@@ -1522,7 +1943,11 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                             display: true,
                         });
                     } else {
-                        const resolvedModel = resolveDeepReviewModel(ctx.modelRegistry, options.model);
+                        const resolvedModel = resolveDeepReviewModel(
+                            ctx.modelRegistry,
+                            options.provider,
+                            options.model,
+                        );
                         contextPackBudgetPlan = buildContextPackBudgetPlan(options, resolvedModel);
 
                         const packStartedAt = Date.now();
@@ -1731,7 +2156,7 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
                             display: true,
                         });
                     } else {
-                        const content = `deep-review failed: ${message}\n\nUse /deep-review --help for options.`;
+                        const content = formatFailureMessage(message);
                         pi.sendMessage({ customType: "deep-review-error", content, display: true });
                         if (ctx.hasUI) {
                             ctx.ui.notify(message, "error");

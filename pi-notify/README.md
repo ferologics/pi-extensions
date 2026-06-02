@@ -1,6 +1,6 @@
 # pi-notify
 
-A [Pi](https://github.com/badlogic/pi-mono) extension that sends a native desktop notification when the agent finishes and is waiting for input.
+A [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) extension that sends a native desktop notification when the agent finishes and is waiting for input.
 
 ![pi-notify demo](demo.gif)
 

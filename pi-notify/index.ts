@@ -11,7 +11,7 @@
  * - Optional sound hook via PI_NOTIFY_SOUND_CMD
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 function windowsToastScript(title: string, body: string): string {
     const type = "Windows.UI.Notifications";

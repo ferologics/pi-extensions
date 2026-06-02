@@ -45,11 +45,11 @@ Current extensions:
 
 Extensions import from pi's packages. The `tsconfig.json` maps these:
 
-- `@mariozechner/pi-coding-agent` - Extension API
-- `@mariozechner/pi-agent-core` - Message types
-- `@mariozechner/pi-ai` - Content types
-- `@mariozechner/pi-tui` - TUI utilities
-- `@sinclair/typebox` - Schema types
+- `@earendil-works/pi-coding-agent` - Extension API
+- `@earendil-works/pi-agent-core` - Message types
+- `@earendil-works/pi-ai` - Content types
+- `@earendil-works/pi-tui` - TUI utilities
+- `typebox` - Schema types
 
 ## Style
 

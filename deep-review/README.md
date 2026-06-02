@@ -3,12 +3,16 @@
 Run a 2-phase deep PR review flow inside your current Pi session:
 
 1. Context packing for the current branch/repo
-2. Direct OpenAI Responses API streaming (reasoning + final answer)
+2. Direct Responses API streaming through OpenAI Codex or OpenAI Platform (reasoning + final answer)
 
 ## Setup
 
 ```bash
-# 1) OpenAI auth
+# 1) OpenAI Codex auth (default; ChatGPT Plus/Pro)
+# Run inside Pi:
+# /login openai-codex
+
+# Optional: OpenAI Platform auth for --provider openai
 export OPENAI_API_KEY=your_key_here
 
 # 2) Required for token budgeting in context pack stage
@@ -44,11 +48,12 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 
 ## Defaults
 
-- Model: `gpt-5.4-pro`
+- Provider: `openai-codex`
+- Model: `gpt-5.5`
 - Reasoning effort: `xhigh`
 - Summary: `auto`
-- Verbosity: `high` on `gpt-5.4-pro`, otherwise `medium`
-- Context-pack budget target: auto-sized from the selected model
+- Verbosity: `high` on pro models, otherwise `medium`
+- Context-pack budget target: auto-sized from the selected provider/model
 - Base ref: auto-detected (`origin/main`, `origin/master`, `main`, `master`, `HEAD~1`)
 
 ## Options
@@ -58,13 +63,14 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 - `--base <ref>`
 - `--context-pack <path>` (skip generation and use existing context pack)
 - `--budget <tokens>` (override the auto-sized context-pack budget target; cannot combine with `--context-pack`)
-- `--model <id>` (common ids: `gpt-5.4-pro`, `gpt-5.4`, `gpt-5.2`, `gpt-4.1`)
+- `--provider openai-codex|openai`
+- `--model <id>` (common ids: `gpt-5.5`, `gpt-5.4`, `gpt-5.2`, `gpt-5.5-pro`, `gpt-5.4-pro`, `gpt-4.1`)
 - `--effort minimal|low|medium|high|xhigh`
-- `--verbosity low|medium|high` (default: `high` on `gpt-5.4-pro`, otherwise `medium`)
+- `--verbosity low|medium|high` (default: `high` on pro models, otherwise `medium`)
 - `--summary auto|detailed|null`
 - `--no-summary` (shortcut for `--summary null`)
-- `--org <id>`
-- `--project-id <id>`
+- `--org <id>` (OpenAI Platform only)
+- `--project-id <id>` (OpenAI Platform only)
 - `--debug`
 - `--help`
 
@@ -73,10 +79,10 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 ```text
 /deep-review "find bugs and regressions"
 /deep-review "find bugs and regressions" --model gpt-5.4
-/deep-review "find bugs and regressions" --model gpt-5.4-pro
+/deep-review "find bugs and regressions" --provider openai --model gpt-5.5-pro
 ```
 
-Model availability depends on the OpenAI account / token backing the request.
+Model availability depends on the OpenAI account / token backing the request. By default, `/deep-review` uses the ChatGPT Codex backend (`openai-codex`) and OAuth from `/login openai-codex`; pass `--provider openai` to use OpenAI Platform credentials from `OPENAI_API_KEY`.
 
 ## Architecture (high level)
 
@@ -112,11 +118,13 @@ Generated pack output includes:
 - If `--context-pack <path>` is provided, generation is skipped.
 - Context packing is deterministic and executed directly in the extension (no nested `pi -p` skill hop).
 - Related-file omissions are explicitly reported with reasons.
-- By default, context-pack budget is derived from the selected model metadata as the lower of:
+- By default, context-pack budget is derived from the selected provider/model metadata as the lower of:
   - `contextWindow - maxTokens`
   - `75% of contextWindow`
-- This preserves the old ~`272000` input-target behavior on `400k/128k` class models while still scaling up on larger models like `gpt-5.4-pro`.
+- Deep-review also corrects stale `gpt-5.4` OpenAI/OpenAI Codex registry metadata to a `1.05M`-class context window before budgeting.
+- This preserves the old ~`272000` input-target behavior on `400k/128k` class models while still scaling up on larger models like `gpt-5.4` and `gpt-5.4-pro`.
 - If model metadata is unavailable, deep-review falls back to a `272000` token pre-reserve target.
+- Manual `--budget` values are still capped by the selected model's hard input limit (`contextWindow - maxTokens`) when model metadata is available.
 - Context-pack generation then subtracts request headroom (query + protocol overhead), so effective pack budget can be lower than the configured or auto-derived target.
 - Related candidates that are already in changed files are de-duplicated from related omission stats/manifests.
 - Related test/test-data files are only eligible when close to changed modules (shared path affinity or short graph distance).

@@ -25,6 +25,9 @@
         ],
         "video": "https://raw.githubusercontent.com/ferologics/pi-notify/master/demo.mp4"
     },
+    "peerDependencies": {
+        "@earendil-works/pi-coding-agent": "*"
+    },
     "piRelease": {
         "repo": "ferologics/pi-notify",
         "branch": "master",

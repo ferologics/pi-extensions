@@ -27,7 +27,7 @@ sequenceDiagram
     participant CP as Context pack pipeline
     participant S as Scribe
     participant T as tokencount
-    participant O as OpenAI Responses API
+    participant O as Responses endpoint
 
     U->>DR: /deep-review "query"
     DR->>CP: buildContextPack(options)
@@ -35,10 +35,18 @@ sequenceDiagram
     S-->>CP: related candidates + target stats
     CP->>T: baseline/final token checks
     CP-->>DR: pack path + manifests + report.json
-    DR->>O: send query + context pack
+    DR->>O: send query + context pack via selected provider
     O-->>DR: stream events + final response
     DR-->>U: final markdown + handoff artifact links
 ```
+
+---
+
+## Response routing
+
+- Default route: `openai-codex/gpt-5.5` with `xhigh` reasoning via `https://chatgpt.com/backend-api/codex/responses`.
+- Platform route: pass `--provider openai` to use `https://api.openai.com/v1/responses` with `OPENAI_API_KEY` / OpenAI Platform auth.
+- Request metadata records provider, endpoint, and auth source in debug events, final report, and handoff metadata.
 
 ---
 
@@ -167,7 +175,11 @@ Note: related overlap with changed files is de-duplicated and not counted as rel
 4. **Request headroom reserve in deep-review**
    - Context-pack budget is reduced to leave room for query + protocol overhead.
 
-5. **Recall-first selection policy**
+5. **Manual budget model cap**
+   - Manual `--budget` overrides are capped by the selected model's hard input limit when model metadata is available.
+   - This prevents expensive context-pack generation from producing a request the provider rejects for context length.
+
+6. **Recall-first selection policy**
    - Prefer broad recall and explicit budget trimming over early bounded graph pruning.
    - Prioritizes review completeness and omission transparency over raw speed.
 

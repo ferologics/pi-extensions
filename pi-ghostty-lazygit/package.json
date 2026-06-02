@@ -24,6 +24,9 @@
             "index.ts"
         ]
     },
+    "peerDependencies": {
+        "@earendil-works/pi-coding-agent": "*"
+    },
     "piRelease": {
         "repo": "ferologics/pi-ghostty-lazygit",
         "branch": "main",
