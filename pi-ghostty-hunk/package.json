@@ -1,6 +1,6 @@
 {
     "name": "pi-ghostty-hunk",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Open Hunk in a new Ghostty window from inside Pi",
     "keywords": [
         "pi-package",
