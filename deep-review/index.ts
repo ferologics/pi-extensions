@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { calculateCost, getModel, type Model, type Usage } from "@earendil-works/pi-ai";
+import { calculateCost, type Model, type Usage } from "@earendil-works/pi-ai";
 import { getMarkdownTheme, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Markdown } from "@earendil-works/pi-tui";
 import { buildContextPack, type ContextPackOptions, type ContextPackReportV1 } from "./context-pack/index.js";
@@ -874,10 +874,7 @@ function resolveRequestModel(
     provider: DeepReviewProvider,
     modelId: string,
 ): Model<any> | undefined {
-    return (
-        (modelRegistry.find(provider, modelId) as Model<any> | undefined) ??
-        (getModel(provider, modelId as never) as Model<any> | undefined)
-    );
+    return modelRegistry.find(provider, modelId) as Model<any> | undefined;
 }
 
 function uniqueModelCandidates(candidates: Array<Model<any> | undefined>): Model<any>[] {
@@ -911,12 +908,7 @@ function getAuthModelCandidates(
             ? [modelId, DEFAULT_DEEP_REVIEW_MODEL, "gpt-5.4", "gpt-5.2"]
             : [modelId, DEFAULT_DEEP_REVIEW_MODEL, "gpt-5.5-pro", "gpt-5", "gpt-4.1"];
 
-    return uniqueModelCandidates(
-        fallbackIds.flatMap((id) => [
-            modelRegistry.find(provider, id) as Model<any> | undefined,
-            getModel(provider, id as never) as Model<any> | undefined,
-        ]),
-    );
+    return uniqueModelCandidates(fallbackIds.map((id) => modelRegistry.find(provider, id) as Model<any> | undefined));
 }
 
 function resolveOpenAiResponsesEndpoint(model?: Model<any>): string {
@@ -1310,9 +1302,8 @@ async function streamResponses(
     const totalTokens = Number(usagePayload.total_tokens ?? inputTokens + outputTokens);
 
     let estimatedCostUsd: number | undefined;
-    const billingModel = route.model ?? (getModel(options.provider, options.model as never) as Model<any> | undefined);
 
-    if (billingModel) {
+    if (route.model) {
         const usage: Usage = {
             input: Math.max(0, inputTokens - cachedTokens),
             output: outputTokens,
@@ -1328,7 +1319,7 @@ async function streamResponses(
             },
         };
 
-        calculateCost(billingModel, usage);
+        calculateCost(route.model, usage);
         estimatedCostUsd = usage.cost.total;
     }
 
@@ -1490,15 +1481,8 @@ function resolveDeepReviewModel(
     provider: DeepReviewProvider,
     modelId: string,
 ): BudgetModelMetadata | undefined {
-    const fromRegistry = modelRegistry.find(provider, modelId) as BudgetModelMetadata | undefined;
-
-    if (fromRegistry) {
-        return normalizeBudgetModelMetadata(fromRegistry);
-    }
-
-    const fallback = getModel(provider, modelId as never) as BudgetModelMetadata | undefined;
-
-    return fallback ? normalizeBudgetModelMetadata(fallback) : undefined;
+    const model = modelRegistry.find(provider, modelId) as BudgetModelMetadata | undefined;
+    return model ? normalizeBudgetModelMetadata(model) : undefined;
 }
 
 export function buildContextPackBudgetPlan(
