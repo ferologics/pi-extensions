@@ -10,6 +10,7 @@ Custom extensions for [pi-coding-agent](https://www.npmjs.com/package/@earendil-
 | [`pi-ghostty-hunk`](pi-ghostty-hunk/)           | Open Hunk in a new Ghostty window at the current repo root                         |
 | [`pi-ghostty-lazygit`](pi-ghostty-lazygit/)     | Open lazygit in a new Ghostty window at the current repo root                      |
 | [`pi-notify`](pi-notify/)                       | Desktop notifications when the agent finishes                                      |
+| [`pi-slack-user`](pi-slack-user/)               | Read Slack permalinks and post confirmed replies with a user OAuth token           |
 | [`pi-system-theme`](pi-system-theme/)           | Sync Pi theme with macOS dark/light mode and configurable theme names              |
 | [`plan-mode`](plan-mode/)                       | Read-only plan mode with progress tracking and questionnaire support               |
 | [`pi-verbosity-control`](pi-verbosity-control/) | Per-model OpenAI verbosity overrides with a keyboard toggle                        |

@@ -37,6 +37,7 @@ Current extensions:
 - `pi-ghostty-hunk`
 - `pi-ghostty-lazygit`
 - `pi-notify`
+- `pi-slack-user`
 - `pi-system-theme`
 - `plan-mode`
 - `pi-verbosity-control`
