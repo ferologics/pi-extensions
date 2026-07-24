@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { matchesAnyExcludePattern, normalizeExcludePattern } from "./patterns.js";
 import type { ChangedFileRecord, ContextPackGitSnapshot, ContextPackOptions, ContextPackRepoContext } from "./types.js";
 
 const execFileAsync = promisify(execFile);
@@ -58,6 +59,23 @@ function parseNameStatus(raw: string): ChangedFileRecord[] {
         .sort((left, right) => left.path.localeCompare(right.path));
 }
 
+function buildGitPathspecArgs(excludePatterns: string[]): string[] {
+    const normalizedPatterns = excludePatterns.map((pattern) => normalizeExcludePattern(pattern)).filter(Boolean);
+    if (normalizedPatterns.length === 0) {
+        return [];
+    }
+
+    return ["--", ".", ...normalizedPatterns.map((pattern) => `:(exclude)${pattern}`)];
+}
+
+function findExcludedChangedFiles(
+    allChangedFiles: ChangedFileRecord[],
+    filteredChangedFiles: ChangedFileRecord[],
+): ChangedFileRecord[] {
+    const filteredPaths = new Set(filteredChangedFiles.map((record) => record.path));
+    return allChangedFiles.filter((record) => !filteredPaths.has(record.path));
+}
+
 export async function resolveRepoContext(options: ContextPackOptions): Promise<ContextPackRepoContext> {
     const insideWorkTree = (await runGit(options.projectDir, ["rev-parse", "--is-inside-work-tree"]))
         .trim()
@@ -106,25 +124,40 @@ export async function resolveRepoContext(options: ContextPackOptions): Promise<C
 export async function collectGitSnapshot(
     context: ContextPackRepoContext,
     diffContext = 3,
+    excludePatterns: string[] = [],
 ): Promise<ContextPackGitSnapshot> {
     const range = `${context.baseCommit}...HEAD`;
 
-    const changedRaw = await runGit(context.repoRoot, ["diff", "--name-only", "--diff-filter=ACMR", range]);
+    const unfilteredNameStatusText = await runGit(context.repoRoot, ["diff", "--name-status", range]);
+    const allChangedFiles = parseNameStatus(unfilteredNameStatusText);
 
-    if (!changedRaw.trim()) {
+    if (allChangedFiles.length === 0) {
         throw new Error(`No changed files found between ${context.baseRef} and HEAD`);
     }
 
-    const nameStatusText = await runGit(context.repoRoot, ["diff", "--name-status", range]);
-    const diffText = await runGit(context.repoRoot, ["diff", "--no-color", `--unified=${diffContext}`, range]);
+    const pathspecArgs = buildGitPathspecArgs(excludePatterns);
+    const nameStatusText = await runGit(context.repoRoot, ["diff", "--name-status", range, ...pathspecArgs]);
+    const diffText = await runGit(context.repoRoot, [
+        "diff",
+        "--no-color",
+        `--unified=${diffContext}`,
+        range,
+        ...pathspecArgs,
+    ]);
     const changedFiles = parseNameStatus(nameStatusText);
+    const excludedChangedFiles = findExcludedChangedFiles(allChangedFiles, changedFiles).filter((record) =>
+        matchesAnyExcludePattern(record.path, excludePatterns),
+    );
 
     if (changedFiles.length === 0) {
-        throw new Error(`No parseable changed files found between ${context.baseRef} and HEAD`);
+        throw new Error(
+            `No changed files remain after applying deep-review config excludes for ${context.baseRef}..HEAD`,
+        );
     }
 
     return {
         changedFiles,
+        excludedChangedFiles,
         nameStatusText,
         diffText,
     };

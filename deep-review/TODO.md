@@ -20,7 +20,7 @@ Reference: `extensions/deep-review/ARCH.md`
 - [ ] Define a generic default policy that does not overfit a single repo shape
 - [ ] Prototype adaptive Scribe recall profiles (unbounded default + optional bounded fallback passes) and benchmark quality/runtime tradeoffs.
 - [ ] Add report metadata for recall mode/profile + any Scribe bounds used so omissions stay explainable.
-- [ ] Add optional repo-level override mechanism (for example `.pi/context-pack.rules.yaml`) for project-specific priorities
+- [ ] Consider repo-local context-pack config if shared excludes/priorities become useful beyond the current user-local `~/.pi/deep-review.json` config
 - [ ] Add integration tests that assert mission-critical local code is not unexpectedly dropped in budget-tight runs
 - [ ] Complete missing integration coverage for no-Scribe, partial-Scribe-failure, deterministic trimming, and baseline-over-budget paths
 - [ ] Evaluate bounded-recall fallback outcomes vs rank-tail-trim outcomes across at least 2 repo shapes before changing defaults.

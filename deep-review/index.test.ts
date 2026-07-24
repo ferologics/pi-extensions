@@ -29,6 +29,7 @@ let parseOptions: (
         effort?: string;
         model?: string;
         provider?: string;
+        reasoningMode?: string;
         verbosity?: string;
     };
 };
@@ -82,13 +83,36 @@ describe("parseOptions", () => {
         expect(parsed.message).toContain("both positionally and via --query");
     });
 
-    it("defaults to openai-codex gpt-5.5 on xhigh", () => {
+    it("defaults to openai-codex GPT-5.6 Sol on max", () => {
         const parsed = parseOptions('"review this"', "/tmp");
         expect(parsed.ok).toBe(true);
         expect(parsed.options?.provider).toBe("openai-codex");
-        expect(parsed.options?.model).toBe("gpt-5.5");
-        expect(parsed.options?.effort).toBe("xhigh");
+        expect(parsed.options?.model).toBe("gpt-5.6-sol");
+        expect(parsed.options?.effort).toBe("max");
+        expect(parsed.options?.reasoningMode).toBeUndefined();
         expect(parsed.options?.verbosity).toBe("medium");
+    });
+
+    it("defaults the OpenAI Platform GPT-5.6 route to pro mode and high verbosity", () => {
+        const parsed = parseOptions('"review this" --provider openai', "/tmp");
+        expect(parsed.ok).toBe(true);
+        expect(parsed.options?.provider).toBe("openai");
+        expect(parsed.options?.model).toBe("gpt-5.6-sol");
+        expect(parsed.options?.effort).toBe("max");
+        expect(parsed.options?.reasoningMode).toBe("pro");
+        expect(parsed.options?.verbosity).toBe("high");
+    });
+
+    it("uses xhigh by default on pre-GPT-5.6 models", () => {
+        const parsed = parseOptions('"review this" --model gpt-5.5', "/tmp");
+        expect(parsed.ok).toBe(true);
+        expect(parsed.options?.effort).toBe("xhigh");
+    });
+
+    it("rejects pro mode on the Codex subscription route", () => {
+        const parsed = parseOptions('"review this" --mode pro', "/tmp");
+        expect(parsed.ok).toBe(false);
+        expect(parsed.message).toContain("only supported with --provider openai");
     });
 
     it("keeps medium verbosity defaults on non-pro models", () => {
@@ -204,6 +228,41 @@ describe("buildContextPackBudgetPlan", () => {
         expect(plan.finalBudget).toBe(773452);
     });
 
+    it("uses the Codex backend's 372k GPT-5.6 context window", () => {
+        const plan = buildContextPackBudgetPlan(
+            { query: "review", model: "gpt-5.6-sol" },
+            {
+                provider: "openai-codex",
+                id: "gpt-5.6-sol",
+                contextWindow: 372000,
+                maxTokens: 128000,
+            },
+        );
+
+        expect(plan.modelContextWindow).toBe(372000);
+        expect(plan.modelHardInputBudget).toBe(244000);
+        expect(plan.requestedBudget).toBe(244000);
+        expect(plan.finalBudget).toBe(229952);
+    });
+
+    it("opts direct OpenAI GPT-5.6 into its official 1.05M context window", () => {
+        const plan = buildContextPackBudgetPlan(
+            { query: "review", model: "gpt-5.6-sol" },
+            {
+                provider: "openai",
+                id: "gpt-5.6-sol",
+                contextWindow: 272000,
+                maxTokens: 128000,
+            },
+        );
+
+        expect(plan.modelContextWindow).toBe(1050000);
+        expect(plan.modelHardInputBudget).toBe(922000);
+        expect(plan.modelRatioInputBudget).toBe(787500);
+        expect(plan.requestedBudget).toBe(787500);
+        expect(plan.finalBudget).toBe(773452);
+    });
+
     it("scales up on gpt-5.4-pro without saturating the full context window", () => {
         const plan = buildContextPackBudgetPlan(
             { query: "review", model: "gpt-5.4-pro" },
@@ -270,6 +329,33 @@ describe("buildResponsesPayload", () => {
         expect(payload.instructions).toEqual(expect.stringContaining("senior code reviewer"));
         expect(payload.tool_choice).toBe("auto");
         expect(payload.parallel_tool_calls).toBe(true);
+    });
+
+    it("sends pro mode on direct OpenAI GPT-5.6 requests", () => {
+        const payload = buildResponsesPayload(
+            {
+                ...baseOptions,
+                provider: "openai",
+                model: "gpt-5.6-sol",
+                effort: "max",
+                reasoningMode: "pro",
+                verbosity: "high",
+            },
+            "context",
+            {
+                provider: "openai",
+                endpoint: "https://api.openai.com/v1/responses",
+                headers: {},
+                source: "test",
+                model: {
+                    provider: "openai",
+                    id: "gpt-5.6-sol",
+                    thinkingLevelMap: { max: "max" },
+                },
+            },
+        );
+
+        expect(payload.reasoning).toEqual({ effort: "max", summary: "auto", mode: "pro" });
     });
 });
 

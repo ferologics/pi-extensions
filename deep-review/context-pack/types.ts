@@ -13,6 +13,7 @@ export type ContextPackOmissionReason =
     | "filtered:tests"
     | "filtered:tests-not-close"
     | "filtered:generated-cache"
+    | "filtered:config-exclude"
     | "filtered:missing"
     | "filtered:unknown"
     | "over-budget"
@@ -56,6 +57,7 @@ export interface ChangedFileRecord {
 
 export interface ContextPackGitSnapshot {
     changedFiles: ChangedFileRecord[];
+    excludedChangedFiles: ChangedFileRecord[];
     nameStatusText: string;
     diffText: string;
 }
@@ -126,6 +128,12 @@ export interface ContextPackReportError {
     details?: string;
 }
 
+export interface ContextPackConfigReport {
+    path?: string;
+    matchedRepoPath?: string;
+    excludePatterns: string[];
+}
+
 export interface ContextPackReportV1 {
     version: ContextPackReportVersion;
     generatedAt: string;
@@ -138,6 +146,7 @@ export interface ContextPackReportV1 {
     budget: number;
     tokens: ContextPackTokenSummary;
     counts: ContextPackCountSummary;
+    config?: ContextPackConfigReport;
     paths: Partial<ContextPackReportPaths>;
     warnings: string[];
     error?: ContextPackReportError;

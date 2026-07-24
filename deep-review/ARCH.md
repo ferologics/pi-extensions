@@ -44,8 +44,8 @@ sequenceDiagram
 
 ## Response routing
 
-- Default route: `openai-codex/gpt-5.5` with `xhigh` reasoning via `https://chatgpt.com/backend-api/codex/responses`.
-- Platform route: pass `--provider openai` to use `https://api.openai.com/v1/responses` with `OPENAI_API_KEY` / OpenAI Platform auth.
+- Default route: `openai-codex/gpt-5.6-sol` with `max` reasoning via `https://chatgpt.com/backend-api/codex/responses`. It keeps the Codex backend's registered 372K context window.
+- Platform route: pass `--provider openai` to use `openai/gpt-5.6-sol` with `reasoning.mode: "pro"`, `max` effort, the official 1.05M context window, and `OPENAI_API_KEY` / OpenAI Platform auth.
 - Request metadata records provider, endpoint, and auth source in debug events, final report, and handoff metadata.
 
 ---
@@ -54,24 +54,25 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[Resolve repo and base ref] --> B[Collect changed files and diff]
-    B --> C[Filter and validate changed files]
-    C --> D[Run Scribe recall for changed targets]
-    D --> E[Merge and dedupe related candidates]
-    E --> F[Apply related filters]
-    F --> G[Rank candidates deterministically]
-    G --> H[Estimate candidate tokens]
-    H --> I[Render baseline pack changed only]
-    I --> J[Count baseline tokens]
-    J --> K{Baseline over budget}
-    K -- yes --> L[Fail core over budget]
-    K -- no --> M[Budget fit related candidates]
-    M --> N[Render final pack]
-    N --> O[Count final tokens]
-    O --> P{Final over budget}
-    P -- yes --> Q[Tail trim lowest ranked related and retry]
-    Q --> N
-    P -- no --> R[Write manifests and report json]
+    A[Resolve repo and base ref] --> B[Load user context-pack config]
+    B --> C[Collect filtered changed files and diff]
+    C --> D[Filter and validate changed files]
+    D --> E[Run Scribe recall for changed targets]
+    E --> F[Merge and dedupe related candidates]
+    F --> G[Apply related filters]
+    G --> H[Rank candidates deterministically]
+    H --> I[Estimate candidate tokens]
+    I --> J[Render baseline pack changed only]
+    J --> K[Count baseline tokens]
+    K --> L{Baseline over budget}
+    L -- yes --> M[Fail core over budget]
+    L -- no --> N[Budget fit related candidates]
+    N --> O[Render final pack]
+    O --> P[Count final tokens]
+    P --> Q{Final over budget}
+    Q -- yes --> R[Tail trim lowest ranked related and retry]
+    R --> O
+    Q -- no --> S[Write manifests and report json]
 ```
 
 ---
@@ -120,6 +121,7 @@ Related candidates are sorted by:
 ### Invariants
 
 - Changed files are highest priority and included unless explicitly filtered.
+- User config excludes are applied before diff rendering, full-file rendering, Scribe target selection, and related candidate selection.
 - Related files are included/omitted deterministically under budget pressure.
 - Omissions are explicit (filter reason or `over-budget`).
 - If core (changed-only baseline) exceeds budget, fail with `core-over-budget`.
@@ -149,6 +151,7 @@ Related candidates are sorted by:
 - `filtered:tests`
 - `filtered:tests-not-close`
 - `filtered:generated-cache`
+- `filtered:config-exclude`
 - `filtered:missing`
 - `filtered:unknown`
 - `over-budget`
@@ -179,9 +182,20 @@ Note: related overlap with changed files is de-duplicated and not counted as rel
    - Manual `--budget` overrides are capped by the selected model's hard input limit when model metadata is available.
    - This prevents expensive context-pack generation from producing a request the provider rejects for context length.
 
-6. **Recall-first selection policy**
+6. **Provider-specific GPT-5.6 context**
+
+   - Codex subscription GPT-5.6 keeps Pi's registered 372K context window.
+   - Direct OpenAI GPT-5.6 explicitly opts into the official 1.05M context window and long-context pricing tier.
+   - Direct OpenAI GPT-5.6 defaults to pro reasoning mode; the Codex route does not send `reasoning.mode`.
+
+7. **Recall-first selection policy**
    - Prefer broad recall and explicit budget trimming over early bounded graph pruning.
    - Prioritizes review completeness and omission transparency over raw speed.
+
+8. **User config excludes**
+   - Reads optional user config from `~/.pi/deep-review.json`.
+   - Supports exact repo-root entries under `contextPack.repos` with repo-root-relative `exclude` globs.
+   - Excluded changed files are removed from git diff/full-file rendering and recorded as `filtered:config-exclude`.
 
 ---
 

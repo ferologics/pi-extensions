@@ -9,7 +9,8 @@ import { Markdown } from "@earendil-works/pi-tui";
 import { buildContextPack, type ContextPackOptions, type ContextPackReportV1 } from "./context-pack/index.js";
 
 type DeepReviewProvider = "openai" | "openai-codex";
-type ReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh";
+type ReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+type ReasoningMode = "standard" | "pro";
 type TextVerbosity = "low" | "medium" | "high";
 type ReasoningSummary = "auto" | "detailed" | null;
 
@@ -22,6 +23,7 @@ type DeepReviewOptions = {
     provider: DeepReviewProvider;
     model: string;
     effort: ReasoningEffort;
+    reasoningMode?: ReasoningMode;
     verbosity: TextVerbosity;
     summary: ReasoningSummary;
     organization?: string;
@@ -139,10 +141,11 @@ A query is required, either as positional text or via \`--query\`.
 - \`--context-pack <path>\`  Skip context-pack generation and use an existing pack file
 - \`--budget <tokens>\`      Override the auto-sized context-pack budget target (example: \`180000\`; cannot combine with \`--context-pack\`)
 - \`--provider <name>\`      \`openai-codex|openai\` (default: \`openai-codex\`)
-- \`--model <id>\`           Responses model (default: \`gpt-5.5\`)
-  - Common ids: \`gpt-5.5\`, \`gpt-5.4\`, \`gpt-5.2\`, \`gpt-5.5-pro\`, \`gpt-5.4-pro\`, \`gpt-4.1\`
-- \`--effort <level>\`       \`minimal|low|medium|high|xhigh\` (default: \`xhigh\`)
-- \`--verbosity <level>\`    \`low|medium|high\` (default: \`high\` on pro models, otherwise \`medium\`)
+- \`--model <id>\`           Responses model (default: \`gpt-5.6-sol\`)
+  - Common ids: \`gpt-5.6-sol\`, \`gpt-5.6-terra\`, \`gpt-5.6-luna\`, \`gpt-5.5\`, \`gpt-5.5-pro\`
+- \`--effort <level>\`       \`minimal|low|medium|high|xhigh|max\` (default: \`max\` on GPT-5.6, otherwise \`xhigh\`)
+- \`--mode <mode>\`          \`standard|pro\` (OpenAI Platform GPT-5.6 only; default there: \`pro\`)
+- \`--verbosity <level>\`    \`low|medium|high\` (default: \`high\` in pro mode/on pro models, otherwise \`medium\`)
 - \`--summary <mode>\`       \`auto|detailed|null\` (default: \`auto\`)
 - \`--no-summary\`           Shortcut for \`--summary null\`
 - \`--org <id>\`             Override \`openai-organization\` header (OpenAI Platform only)
@@ -155,8 +158,8 @@ A query is required, either as positional text or via \`--query\`.
 Use \`--provider <name>\` and \`--model <id>\`, for example:
 
 - \`/deep-review "review this"\`
-- \`/deep-review "review this" --model gpt-5.4\`
-- \`/deep-review "review this" --provider openai --model gpt-5.5-pro\`
+- \`/deep-review "review this" --model gpt-5.6-terra\`
+- \`/deep-review "review this" --provider openai\` (GPT-5.6 Sol, pro mode, 1.05M context)
 
 Model availability depends on the OpenAI account / token backing the request.
 
@@ -167,6 +170,7 @@ Model availability depends on the OpenAI account / token backing the request.
 ## Requirement
 
 - By default, authenticate with \`/login openai-codex\` (ChatGPT Plus/Pro). Use \`--provider openai\` with \`OPENAI_API_KEY\` for Platform.
+- The Codex GPT-5.6 route uses its registered 372K context window. Direct OpenAI GPT-5.6 opts into the official 1.05M window and long-context pricing above 272K input tokens.
 - \`tokencount\` must be installed and available in \`PATH\`.
 - If \`--context-pack <path>\` is provided, deep-review uses that file directly and skips pack generation.
 `;
@@ -177,7 +181,7 @@ const WIDGET_TICK_MS = 250;
 const SPINNER_FRAME_MS = 100;
 const MARKDOWN_THEME = getMarkdownTheme();
 const DEFAULT_DEEP_REVIEW_PROVIDER: DeepReviewProvider = "openai-codex";
-const DEFAULT_DEEP_REVIEW_MODEL = "gpt-5.5";
+const DEFAULT_DEEP_REVIEW_MODEL = "gpt-5.6-sol";
 const DEEP_REVIEW_INSTRUCTIONS = [
     "You are a meticulous senior code reviewer.",
     "Use the supplied context pack as the source of truth, then answer the user's review request.",
@@ -185,6 +189,7 @@ const DEEP_REVIEW_INSTRUCTIONS = [
     "Call out uncertainty and omitted coverage explicitly instead of pretending the review is exhaustive.",
 ].join("\n");
 const HIGH_VERBOSITY_MODEL_IDS = new Set(["gpt-5.4-pro", "gpt-5.5-pro"]);
+const GPT_5_6_MODEL_IDS = new Set(["gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra"]);
 const OPENAI_RESPONSES_BASE_URL = "https://api.openai.com/v1";
 const OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 const CHATGPT_ACCOUNT_ID_CLAIM = "https://api.openai.com/auth";
@@ -328,6 +333,7 @@ async function writeOutputArtifacts(
         provider: options.provider,
         model: options.model,
         effort: options.effort,
+        reasoningMode: options.reasoningMode,
         summary: options.summary,
         verbosity: options.verbosity,
         contextPackPath: packPath,
@@ -432,8 +438,18 @@ function normalizeDeepReviewModelId(modelId: string): string {
     return normalized.slice(normalized.lastIndexOf("/") + 1);
 }
 
-function defaultVerbosityForModel(modelId: string): TextVerbosity {
-    return HIGH_VERBOSITY_MODEL_IDS.has(normalizeDeepReviewModelId(modelId)) ? "high" : "medium";
+function isGpt56Model(modelId: string): boolean {
+    return GPT_5_6_MODEL_IDS.has(normalizeDeepReviewModelId(modelId));
+}
+
+function defaultEffortForModel(modelId: string): ReasoningEffort {
+    return isGpt56Model(modelId) ? "max" : "xhigh";
+}
+
+function defaultVerbosityForOptions(options: Pick<DeepReviewOptions, "model" | "reasoningMode">): TextVerbosity {
+    return options.reasoningMode === "pro" || HIGH_VERBOSITY_MODEL_IDS.has(normalizeDeepReviewModelId(options.model))
+        ? "high"
+        : "medium";
 }
 
 export function parseOptions(rawArgs: string, cwd: string): ParseResult {
@@ -444,13 +460,14 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
         projectDir: cwd,
         provider: DEFAULT_DEEP_REVIEW_PROVIDER,
         model: DEFAULT_DEEP_REVIEW_MODEL,
-        effort: "xhigh",
-        verbosity: defaultVerbosityForModel(DEFAULT_DEEP_REVIEW_MODEL),
+        effort: defaultEffortForModel(DEFAULT_DEEP_REVIEW_MODEL),
+        verbosity: "medium",
         summary: "auto",
         debug: false,
     };
 
     const positional: string[] = [];
+    let explicitEffort = false;
     let explicitVerbosity = false;
 
     const takeValue = (index: number): string | null => {
@@ -530,10 +547,21 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
             case "--effort": {
                 const value = takeValue(i);
                 if (!value) return { ok: false, message: `${token} requires a value` };
-                if (!["minimal", "low", "medium", "high", "xhigh"].includes(value)) {
+                if (!["minimal", "low", "medium", "high", "xhigh", "max"].includes(value)) {
                     return { ok: false, message: `Invalid effort: ${value}` };
                 }
+                explicitEffort = true;
                 options.effort = value as ReasoningEffort;
+                i++;
+                break;
+            }
+            case "--mode": {
+                const value = takeValue(i);
+                if (!value) return { ok: false, message: `${token} requires a value` };
+                if (!["standard", "pro"].includes(value)) {
+                    return { ok: false, message: `Invalid reasoning mode: ${value}` };
+                }
+                options.reasoningMode = value as ReasoningMode;
                 i++;
                 break;
             }
@@ -605,8 +633,23 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
     }
 
     options.query = options.query.trim();
+    if (!explicitEffort) {
+        options.effort = defaultEffortForModel(options.model);
+    }
+
+    if (options.reasoningMode && (options.provider !== "openai" || !isGpt56Model(options.model))) {
+        return {
+            ok: false,
+            message: "--mode is only supported with --provider openai and a GPT-5.6 model.",
+        };
+    }
+
+    if (options.provider === "openai" && isGpt56Model(options.model) && !options.reasoningMode) {
+        options.reasoningMode = "pro";
+    }
+
     if (!explicitVerbosity) {
-        options.verbosity = defaultVerbosityForModel(options.model);
+        options.verbosity = defaultVerbosityForOptions(options);
     }
 
     if (!options.query) {
@@ -1143,10 +1186,14 @@ export function buildResponsesPayload(
         },
     ];
 
-    const reasoning = {
+    const reasoning: Record<string, unknown> = {
         effort: resolveReasoningEffort(route.model, options.effort),
         summary: options.summary,
     };
+
+    if (route.provider === "openai" && options.reasoningMode) {
+        reasoning.mode = options.reasoningMode;
+    }
 
     if (route.provider === "openai-codex") {
         return {
@@ -1341,6 +1388,7 @@ async function streamResponses(
                 payloadMeta: {
                     model: options.model,
                     effort: options.effort,
+                    reasoningMode: options.reasoningMode,
                     summary: options.summary,
                     verbosity: options.verbosity,
                     contextChars: contextText.length,
@@ -1402,7 +1450,11 @@ const CONTEXT_PACK_INPUT_FRACTION = 0.75;
 const CONTEXT_PACK_MIN_BUDGET = 4096;
 const CONTEXT_PACK_OVERHEAD_RESERVE = 12000;
 const CONTEXT_PACK_CONTEXT_WINDOW_FLOORS: Partial<Record<string, number>> = {
-    "gpt-5.4": 1050000,
+    "openai-codex/gpt-5.4": 1050000,
+    "openai/gpt-5.4": 1050000,
+    "openai/gpt-5.6-luna": 1050000,
+    "openai/gpt-5.6-sol": 1050000,
+    "openai/gpt-5.6-terra": 1050000,
 };
 
 function estimateQueryReserveTokens(query: string): number {
@@ -1433,7 +1485,7 @@ function normalizeBudgetModelMetadata(model: BudgetModelMetadata): BudgetModelMe
         return model;
     }
 
-    const contextWindowFloor = CONTEXT_PACK_CONTEXT_WINDOW_FLOORS[model.id];
+    const contextWindowFloor = CONTEXT_PACK_CONTEXT_WINDOW_FLOORS[`${model.provider}/${model.id}`];
     if (contextWindowFloor === undefined || model.contextWindow >= contextWindowFloor) {
         return model;
     }
@@ -1598,6 +1650,34 @@ function formatContextPackBudgetLines(plan: ContextPackBudgetPlan): string[] {
     return lines;
 }
 
+function formatContextPackConfigLines(report: ContextPackReportV1): string[] {
+    const config = report.config;
+    if (!config || (!config.matchedRepoPath && config.excludePatterns.length === 0)) {
+        return [];
+    }
+
+    const lines: string[] = [];
+
+    if (config.path) {
+        lines.push(`- Config file: \`${config.path}\``);
+    }
+
+    if (config.matchedRepoPath) {
+        lines.push(`- Matched repo: \`${config.matchedRepoPath}\``);
+    }
+
+    if (config.excludePatterns.length === 0) {
+        lines.push("- Exclude patterns: none");
+    } else {
+        lines.push("- Exclude patterns:");
+        for (const pattern of config.excludePatterns) {
+            lines.push(`  - \`${pattern}\``);
+        }
+    }
+
+    return lines;
+}
+
 function toContextPackOptions(options: DeepReviewOptions, budgetPlan: ContextPackBudgetPlan): ContextPackOptions {
     return {
         projectDir: options.projectDir,
@@ -1626,6 +1706,7 @@ function summarizeGeneratedContextPackMessage(
     durationMs: number,
     budgetPlan: ContextPackBudgetPlan,
 ): string {
+    const configLines = formatContextPackConfigLines(report);
     const lines: string[] = [
         "## Deep review · context pack stage",
         "",
@@ -1635,6 +1716,7 @@ function summarizeGeneratedContextPackMessage(
         `- Baseline tokens: ${report.tokens.baseline.toLocaleString()}`,
         `- Final tokens: ${report.tokens.final.toLocaleString()}`,
         `- Remaining: ${report.tokens.remaining.toLocaleString()}`,
+        ...(configLines.length > 0 ? ["", "## Context-pack config", "", ...configLines] : []),
         "",
         "## Budgeting",
         "",
@@ -1759,6 +1841,9 @@ function summarizeFinalMessage(
         "",
         `- Query: ${options.query}`,
         `- Provider: ${responses.request.provider}`,
+        `- Model: ${options.model}`,
+        `- Reasoning effort: ${options.effort}`,
+        options.reasoningMode ? `- Reasoning mode: ${options.reasoningMode}` : undefined,
         `- Endpoint: ${responses.request.endpoint}`,
         `- Auth source: ${responses.request.tokenSource}`,
         `- Context pack: \`${packPath}\``,
@@ -1958,6 +2043,11 @@ export default function deepReviewExtension(pi: ExtensionAPI): void {
 
                             if (contextPackResult.report.paths.reportPath) {
                                 contentLines.push("", `- Report: \`${contextPackResult.report.paths.reportPath}\``);
+                            }
+
+                            const configLines = formatContextPackConfigLines(contextPackResult.report);
+                            if (configLines.length > 0) {
+                                contentLines.push("", "### Context-pack config", "", ...configLines);
                             }
 
                             if (contextPackBudgetPlan) {

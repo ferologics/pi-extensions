@@ -48,9 +48,10 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 
 ## Defaults
 
-- Provider: `openai-codex`
-- Model: `gpt-5.5`
-- Reasoning effort: `xhigh`
+- Provider: `openai-codex` (ChatGPT subscription)
+- Model: `gpt-5.6-sol`
+- Reasoning effort: `max` on GPT-5.6, otherwise `xhigh`
+- Reasoning mode: omitted on the Codex subscription route; `pro` by default on direct OpenAI GPT-5.6
 - Summary: `auto`
 - Verbosity: `high` on pro models, otherwise `medium`
 - Context-pack budget target: auto-sized from the selected provider/model
@@ -64,9 +65,10 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 - `--context-pack <path>` (skip generation and use existing context pack)
 - `--budget <tokens>` (override the auto-sized context-pack budget target; cannot combine with `--context-pack`)
 - `--provider openai-codex|openai`
-- `--model <id>` (common ids: `gpt-5.5`, `gpt-5.4`, `gpt-5.2`, `gpt-5.5-pro`, `gpt-5.4-pro`, `gpt-4.1`)
-- `--effort minimal|low|medium|high|xhigh`
-- `--verbosity low|medium|high` (default: `high` on pro models, otherwise `medium`)
+- `--model <id>` (common ids: `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.5-pro`)
+- `--effort minimal|low|medium|high|xhigh|max`
+- `--mode standard|pro` (direct OpenAI GPT-5.6 only)
+- `--verbosity low|medium|high` (default: `high` in pro mode/on pro models, otherwise `medium`)
 - `--summary auto|detailed|null`
 - `--no-summary` (shortcut for `--summary null`)
 - `--org <id>` (OpenAI Platform only)
@@ -74,15 +76,36 @@ Typical runtime is ~6–20 minutes depending on repo size, Scribe graph expansio
 - `--debug`
 - `--help`
 
+## User context-pack config
+
+Deep Review reads an optional user config from `~/.pi/deep-review.json`. Use it for local, machine-specific context-pack excludes that should not be committed to the reviewed repo.
+
+```json
+{
+    "contextPack": {
+        "repos": {
+            "/absolute/path/to/repo": {
+                "exclude": [
+                    "rust/simulator/**",
+                    "web/sdk/src/generated/**"
+                ]
+            }
+        }
+    }
+}
+```
+
+Exclude patterns are repo-root-relative globs. Matching changed files are removed from the changed-file list, git diff, full-file blocks, Scribe targets, and related-file candidates. They are still recorded in manifests and reports as `filtered:config-exclude`.
+
 ## Example
 
 ```text
 /deep-review "find bugs and regressions"
-/deep-review "find bugs and regressions" --model gpt-5.4
-/deep-review "find bugs and regressions" --provider openai --model gpt-5.5-pro
+/deep-review "find bugs and regressions" --model gpt-5.6-terra
+/deep-review "find bugs and regressions" --provider openai
 ```
 
-Model availability depends on the OpenAI account / token backing the request. By default, `/deep-review` uses the ChatGPT Codex backend (`openai-codex`) and OAuth from `/login openai-codex`; pass `--provider openai` to use OpenAI Platform credentials from `OPENAI_API_KEY`.
+Model availability depends on the OpenAI account / token backing the request. By default, `/deep-review` uses GPT-5.6 Sol through the ChatGPT Codex backend (`openai-codex`) and OAuth from `/login openai-codex`. Pass `--provider openai` to use GPT-5.6 Sol in pro mode through OpenAI Platform credentials from `OPENAI_API_KEY`; this route explicitly budgets against the official 1.05M context window.
 
 ## Architecture (high level)
 
@@ -116,13 +139,16 @@ Generated pack output includes:
 ## Notes
 
 - If `--context-pack <path>` is provided, generation is skipped.
+- If `~/.pi/deep-review.json` contains excludes for the current repo, context packing applies them before diff and full-file rendering.
 - Context packing is deterministic and executed directly in the extension (no nested `pi -p` skill hop).
 - Related-file omissions are explicitly reported with reasons.
 - By default, context-pack budget is derived from the selected provider/model metadata as the lower of:
   - `contextWindow - maxTokens`
   - `75% of contextWindow`
+- Deep-review keeps the Codex subscription route's registered GPT-5.6 context window (`372000` tokens).
+- Direct OpenAI GPT-5.6 models explicitly use their official `1050000` token context window before budgeting. Inputs above `272000` tokens use OpenAI's higher long-context pricing tier.
 - Deep-review also corrects stale `gpt-5.4` OpenAI/OpenAI Codex registry metadata to a `1.05M`-class context window before budgeting.
-- This preserves the old ~`272000` input-target behavior on `400k/128k` class models while still scaling up on larger models like `gpt-5.4` and `gpt-5.4-pro`.
+- This preserves the old ~`272000` input-target behavior on `400k/128k` class models while scaling up only on routes with known large-window support.
 - If model metadata is unavailable, deep-review falls back to a `272000` token pre-reserve target.
 - Manual `--budget` values are still capped by the selected model's hard input limit (`contextWindow - maxTokens`) when model metadata is available.
 - Context-pack generation then subtracts request headroom (query + protocol overhead), so effective pack budget can be lower than the configured or auto-derived target.

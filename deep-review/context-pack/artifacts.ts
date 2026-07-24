@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import {
     CONTEXT_PACK_REPORT_VERSION,
+    type ContextPackConfigReport,
     type ContextPackCountSummary,
     type ContextPackReportError,
     type ContextPackReportPaths,
@@ -20,6 +21,7 @@ export interface CreateContextPackReportInput {
     budget: number;
     tokens: ContextPackTokenSummary;
     counts: ContextPackCountSummary;
+    config?: ContextPackConfigReport;
     paths?: Partial<ContextPackReportPaths>;
     warnings?: string[];
     error?: ContextPackReportError;
@@ -38,6 +40,7 @@ export function createContextPackReportV1(input: CreateContextPackReportInput): 
         budget: input.budget,
         tokens: input.tokens,
         counts: input.counts,
+        config: input.config,
         paths: input.paths ?? {},
         warnings: input.warnings ?? [],
         error: input.error,

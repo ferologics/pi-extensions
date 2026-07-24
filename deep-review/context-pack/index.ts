@@ -5,8 +5,10 @@ import * as path from "node:path";
 import { promisify } from "node:util";
 import { createContextPackReportV1, writeContextPackReport } from "./artifacts.js";
 import { fitRelatedCandidatesWithCloseTestPreference } from "./budget.js";
+import { loadContextPackConfig } from "./config.js";
 import { evaluateChangedFile, evaluateRelatedFile } from "./filters.js";
 import { collectGitSnapshot, resolveRepoContext } from "./git.js";
+import { matchesAnyExcludePattern } from "./patterns.js";
 import { rankRelatedCandidates } from "./rank.js";
 import { renderContextPackMarkdown, renderFileBlockMarkdown } from "./render.js";
 import { runScribeRecall } from "./scribe.js";
@@ -570,11 +572,16 @@ export async function buildContextPack(options: ContextPackOptions): Promise<Con
         await ensureTokencount();
 
         const context = await resolveRepoContext(options);
-        const snapshot = await collectGitSnapshot(context, options.diffContext);
+        const contextPackConfig = await loadContextPackConfig(context.repoRoot);
+        const excludePatterns = contextPackConfig.excludePatterns;
+        const snapshot = await collectGitSnapshot(context, options.diffContext, excludePatterns);
         const outputPaths = await resolveOutputPaths(options, context.repoRoot);
 
         const changedIncluded: string[] = [];
-        const omittedChanged: OmittedEntry[] = [];
+        const omittedChanged: OmittedEntry[] = snapshot.excludedChangedFiles.map((record) => ({
+            path: normalizePath(record.path),
+            reason: "filtered:config-exclude",
+        }));
 
         for (const changedFile of snapshot.changedFiles) {
             const relativePath = normalizePath(changedFile.path);
@@ -627,6 +634,11 @@ export async function buildContextPack(options: ContextPackOptions): Promise<Con
                 const relativePath = normalizePath(candidate.path);
 
                 if (changedSet.has(relativePath)) {
+                    continue;
+                }
+
+                if (matchesAnyExcludePattern(relativePath, excludePatterns)) {
+                    addOmittedReason(relatedOmittedReasons, relativePath, "filtered:config-exclude");
                     continue;
                 }
 
@@ -765,6 +777,7 @@ export async function buildContextPack(options: ContextPackOptions): Promise<Con
                     relatedOmitted: relatedOmittedReasons.size,
                     scribeTargets: recall.targets.map((targetResult) => targetResult.row),
                 }),
+                config: contextPackConfig,
                 paths: outputPaths,
                 warnings,
                 error: {
@@ -862,6 +875,7 @@ export async function buildContextPack(options: ContextPackOptions): Promise<Con
                 relatedOmitted: relatedOmittedReasons.size,
                 scribeTargets: scribeTargetRows,
             }),
+            config: contextPackConfig,
             paths: outputPaths,
             warnings,
         });

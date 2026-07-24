@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createContextPackReportV1, isContextPackReportV1 } from "./artifacts.js";
 import { fitRelatedCandidatesToBudget, fitRelatedCandidatesWithCloseTestPreference } from "./budget.js";
+import { resolveContextPackConfig } from "./config.js";
 import { evaluateChangedFile, evaluateRelatedFile } from "./filters.js";
+import { matchesAnyExcludePattern } from "./patterns.js";
 import { rankRelatedCandidates } from "./rank.js";
 import type { ContextPackOptions } from "./types.js";
 
@@ -83,6 +85,36 @@ describe("filters", () => {
     it("keeps changed files permissive for unknown extensions", () => {
         const changed = evaluateChangedFile("some/path/no-extension", baseOptions);
         expect(changed).toEqual({ include: true });
+    });
+});
+
+describe("context-pack config", () => {
+    it("matches repo-root-relative exclude globs", () => {
+        expect(matchesAnyExcludePattern("rust/simulator/src/lib.rs", ["rust/simulator/**"])).toBe(true);
+        expect(matchesAnyExcludePattern("rust/types/src/lib.rs", ["rust/simulator/**"])).toBe(false);
+    });
+
+    it("combines global and exact-repo exclude patterns", () => {
+        const config = resolveContextPackConfig(
+            {
+                contextPack: {
+                    exclude: ["generated/**"],
+                    repos: {
+                        "/repo/mobile": {
+                            exclude: ["rust/simulator/**"],
+                        },
+                    },
+                },
+            },
+            "/repo/mobile",
+            "/home/user/.pi/deep-review.json",
+        );
+
+        expect(config).toEqual({
+            path: "/home/user/.pi/deep-review.json",
+            matchedRepoPath: "/repo/mobile",
+            excludePatterns: ["generated/**", "rust/simulator/**"],
+        });
     });
 });
 
