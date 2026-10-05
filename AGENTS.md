@@ -52,6 +52,9 @@ Extensions import from pi's packages. The `tsconfig.json` maps these:
 - `@earendil-works/pi-tui` - TUI utilities
 - `typebox` - Schema types
 
+TypeScript and Vitest resolve these host packages from `/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent`.
+Install Pi before running checks. `.npmrc` disables automatic peer installation so `npm install` and `npm ci` install the test dependencies without creating a second Pi runtime.
+
 ## Style
 
 - Biome handles formatting and linting

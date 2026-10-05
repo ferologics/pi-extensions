@@ -23,6 +23,12 @@ Each extension folder contains full usage details and examples.
 pi install git:github.com/ferologics/pi-extensions
 ```
 
+## Development
+
+Install Pi globally, then run `npm ci` and `just check` from this directory.
+TypeScript and Vitest use the installed Pi at `/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent`.
+Local npm installs skip host-provided peer dependencies; update Pi to check compatibility with a new release.
+
 ## Setup
 
 Symlink extensions to `~/.pi/agent/extensions/`:

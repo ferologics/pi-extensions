@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import * as os from "node:os";
 import * as path from "node:path";
 import { mkdtemp, writeFile } from "node:fs/promises";
@@ -52,6 +52,7 @@ let parseSseStream: (
     body: ReadableStream<Uint8Array>,
 ) => AsyncGenerator<{ type?: string; [key: string]: unknown }, void, void>;
 let buildResponsesPayload: (options: any, contextText: string, route: any) => Record<string, unknown>;
+let resolveResponsesRoute: typeof import("./index.js").resolveResponsesRoute;
 
 beforeAll(async () => {
     const mod = await import("./index.js");
@@ -62,6 +63,95 @@ beforeAll(async () => {
     normalizeSectionLikeBoldMarkdown = mod.normalizeSectionLikeBoldMarkdown;
     parseSseStream = mod.parseSseStream;
     buildResponsesPayload = mod.buildResponsesPayload;
+    resolveResponsesRoute = mod.resolveResponsesRoute;
+});
+
+describe("resolveResponsesRoute", () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    function registryContext(provider: string, auth: { apiKey?: string; headers?: Record<string, string | null> }) {
+        vi.stubEnv("OPENAI_API_KEY", undefined);
+        vi.stubEnv("OPENAI_BEARER_TOKEN", undefined);
+        vi.stubEnv("OPENAI_SESSION_TOKEN", undefined);
+        const model = { provider, id: "gpt-5.6-sol" };
+        return {
+            modelRegistry: {
+                find: vi.fn((p, id) => (p === provider && id === model.id ? model : undefined)),
+                getApiKeyAndHeaders: vi.fn().mockResolvedValue({ ok: true, ...auth }),
+            },
+        } as any;
+    }
+
+    it("omits null Platform headers and uses the resolved API key", async () => {
+        const ctx = registryContext("openai", {
+            apiKey: "test-api-key",
+            headers: { Authorization: null, "X-Removed": null, "X-Keep": "test-value" },
+        });
+        const route = await resolveResponsesRoute(
+            ctx,
+            { provider: "openai", model: "gpt-5.6-sol" },
+            "text/event-stream",
+        );
+
+        expect(route.headers.Authorization).toBe("Bearer test-api-key");
+        expect(route.headers["X-Keep"]).toBe("test-value");
+        expect(route.headers).not.toHaveProperty("X-Removed");
+        expect(Object.values(route.headers).every((value) => typeof value === "string")).toBe(true);
+    });
+
+    it("preserves a resolved Platform authorization header", async () => {
+        const ctx = registryContext("openai", {
+            apiKey: "unused-key",
+            headers: { authorization: "Bearer header-token", "X-Removed": null },
+        });
+        const route = await resolveResponsesRoute(
+            ctx,
+            { provider: "openai", model: "gpt-5.6-sol" },
+            "text/event-stream",
+        );
+
+        expect(route.headers.authorization).toBe("Bearer header-token");
+        expect(route.headers).not.toHaveProperty("Authorization");
+        expect(route.headers).not.toHaveProperty("X-Removed");
+    });
+
+    it("reads Codex bearer headers and omits null headers before adding defaults", async () => {
+        const payload = Buffer.from(
+            JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "test-account" } }),
+        ).toString("base64url");
+        const token = `test.${payload}.test`;
+        const ctx = registryContext("openai-codex", {
+            headers: {
+                authorization: `Bearer ${token}`,
+                "User-Agent": null,
+                "X-Removed": null,
+                "X-Keep": "test-value",
+            },
+        });
+        const route = await resolveResponsesRoute(
+            ctx,
+            { provider: "openai-codex", model: "gpt-5.6-sol" },
+            "text/event-stream",
+        );
+
+        expect(route.headers).toMatchObject({
+            Authorization: `Bearer ${token}`,
+            "chatgpt-account-id": "test-account",
+            "User-Agent": "pi deep-review",
+            "X-Keep": "test-value",
+        });
+        expect(route.headers).not.toHaveProperty("authorization");
+        expect(route.headers).not.toHaveProperty("X-Removed");
+        expect(Object.values(route.headers).every((value) => typeof value === "string")).toBe(true);
+    });
+
+    it("reports missing Codex credentials when the authorization header is null", async () => {
+        const ctx = registryContext("openai-codex", { headers: { authorization: null } });
+
+        await expect(
+            resolveResponsesRoute(ctx, { provider: "openai-codex", model: "gpt-5.6-sol" }, "text/event-stream"),
+        ).rejects.toThrow("No OpenAI Codex token found");
+    });
 });
 
 describe("splitArgs", () => {

@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { calculateCost, type Model, type Usage } from "@earendil-works/pi-ai";
+import { calculateCost, type Model, type ProviderHeaders, type Usage } from "@earendil-works/pi-ai";
 import { getMarkdownTheme, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Markdown } from "@earendil-works/pi-tui";
 import { buildContextPack, type ContextPackOptions, type ContextPackReportV1 } from "./context-pack/index.js";
@@ -881,6 +881,12 @@ function isDeepReviewProvider(value: string): value is DeepReviewProvider {
     return value === "openai" || value === "openai-codex";
 }
 
+function toRequestHeaders(headers: ProviderHeaders | undefined): Record<string, string> {
+    return Object.fromEntries(
+        Object.entries(headers ?? {}).filter((entry): entry is [string, string] => entry[1] !== null),
+    );
+}
+
 function hasAuthorizationHeader(headers: Record<string, string>): boolean {
     return Object.keys(headers).some((key) => key.toLowerCase() === "authorization");
 }
@@ -1042,7 +1048,7 @@ async function resolveOpenAiPlatformRoute(
             continue;
         }
 
-        const headers = { ...(auth.headers ?? {}) };
+        const headers = toRequestHeaders(auth.headers);
         if (!hasAuthorizationHeader(headers) && auth.apiKey) {
             headers.Authorization = `Bearer ${auth.apiKey}`;
         }
@@ -1121,7 +1127,8 @@ async function resolveOpenAiCodexRoute(
             continue;
         }
 
-        const token = auth.apiKey?.trim() || getAuthorizationBearer(auth.headers);
+        const headers = toRequestHeaders(auth.headers);
+        const token = auth.apiKey?.trim() || getAuthorizationBearer(headers);
         if (!token) {
             continue;
         }
@@ -1129,7 +1136,7 @@ async function resolveOpenAiCodexRoute(
         return {
             provider: "openai-codex",
             endpoint: resolveCodexResponsesEndpoint(model ?? candidate),
-            headers: buildCodexHeaders(auth.headers, token, accept),
+            headers: buildCodexHeaders(headers, token, accept),
             source: `modelRegistry/${candidate.provider}/${candidate.id}`,
             model: model ?? candidate,
         };
@@ -1151,7 +1158,7 @@ async function resolveOpenAiCodexRoute(
     );
 }
 
-async function resolveResponsesRoute(
+export async function resolveResponsesRoute(
     ctx: ExtensionCommandContext,
     options: Pick<DeepReviewOptions, "model" | "organization" | "projectId" | "provider">,
     accept: string,
