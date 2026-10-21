@@ -39,6 +39,7 @@ Current extensions:
 - `pi-notify`
 - `pi-slack-user`
 - `pi-system-theme`
+- `pi-web`
 - `plan-mode`
 - `pi-verbosity-control`
 

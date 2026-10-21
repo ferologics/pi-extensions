@@ -12,6 +12,7 @@ Custom extensions for [pi-coding-agent](https://www.npmjs.com/package/@earendil-
 | [`pi-notify`](pi-notify/)                       | Desktop notifications when the agent finishes                                      |
 | [`pi-slack-user`](pi-slack-user/)               | Read Slack permalinks and post confirmed replies with a user OAuth token           |
 | [`pi-system-theme`](pi-system-theme/)           | Sync Pi theme with macOS dark/light mode and configurable theme names              |
+| [`pi-web`](pi-web/)                             | Web search (Exa, Brave, Claude, Codex, Google) and page fetching                   |
 | [`plan-mode`](plan-mode/)                       | Read-only plan mode with progress tracking and questionnaire support               |
 | [`pi-verbosity-control`](pi-verbosity-control/) | Per-model OpenAI verbosity overrides with a keyboard toggle                        |
 

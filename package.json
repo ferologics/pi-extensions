@@ -1,7 +1,7 @@
 {
     "name": "@ferologics/pi-extensions",
     "version": "0.8.0",
-    "description": "Custom Pi extensions bundle (deep-review, pi-ghostty-hunk, pi-ghostty-lazygit, pi-notify, pi-slack-user, pi-system-theme, plan-mode, pi-verbosity-control)",
+    "description": "Custom Pi extensions bundle (deep-review, pi-ghostty-hunk, pi-ghostty-lazygit, pi-notify, pi-slack-user, pi-system-theme, pi-web, plan-mode, pi-verbosity-control)",
     "type": "module",
     "keywords": [
         "pi-package",
@@ -22,6 +22,8 @@
         "test:watch": "vitest"
     },
     "devDependencies": {
+        "@types/jsdom": "^30.0.0",
+        "@types/turndown": "^5.0.6",
         "vitest": "^4.1.9"
     },
     "pi": {
@@ -32,8 +34,9 @@
             "pi-notify/index.ts",
             "pi-slack-user/index.ts",
             "pi-system-theme/index.ts",
-            "plan-mode/index.ts",
-            "pi-verbosity-control/index.ts"
+            "pi-verbosity-control/index.ts",
+            "pi-web/index.ts",
+            "plan-mode/index.ts"
         ]
     },
     "peerDependencies": {
@@ -49,5 +52,11 @@
         "repo": "ferologics/pi-extensions",
         "branch": "main",
         "subtreePublishRecipe": "publish-extensions"
+    },
+    "dependencies": {
+        "@mozilla/readability": "^0.6.0",
+        "jsdom": "^29.1.1",
+        "turndown": "^7.2.4",
+        "turndown-plugin-gfm": "^1.0.2"
     }
 }
