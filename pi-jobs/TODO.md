@@ -8,8 +8,7 @@
 
 ## Standalone repo
 
-- [ ] The daemon imports pi-web's search/fetch modules by relative path; the standalone mirror (`ferologics/pi-jobs`) needs them vendored or published before it runs on its own.
-- [ ] Then add a standalone `package.json` + `piRelease` + npm publish workflow (release targets require both), and bootstrap the npm package.
+- [ ] Add a standalone `package.json` + `piRelease` + npm publish workflow (release targets require both), and bootstrap the npm package.
 
 ## Remote
 

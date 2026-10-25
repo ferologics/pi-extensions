@@ -8,6 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>@NODE@</string>
+        <string>--disable-warning=ExperimentalWarning</string>
         <string>--import</string>
         <string>./resolve-ts.mjs</string>
         <string>main.ts</string>

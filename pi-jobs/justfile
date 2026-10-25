@@ -12,7 +12,7 @@ check:
 
 # Run the daemon in the foreground (Ctrl+C to stop); stop the launchd agent first
 dev:
-    cd {{ daemon }} && node --import ./resolve-ts.mjs main.ts
+    cd {{ daemon }} && node --disable-warning=ExperimentalWarning --import ./resolve-ts.mjs main.ts
 
 # Install daemon dependencies and (re)start the launchd agent
 install:

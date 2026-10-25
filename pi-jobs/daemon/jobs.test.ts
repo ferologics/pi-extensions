@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { latestSlot, nextSlot, parseJob } from "./jobs.js";
 
+const INSTALLED = ["job_command", "notify", "web_search", "web_fetch"];
+
 describe("parseJob", () => {
     it("reads frontmatter and the prompt body", () => {
         const job = parseJob(
             "/jobs/mac-studio.md",
             '---\nschedule: "0 */6 * * *" # every 6h\nmodel: anthropic/claude-haiku-5-5\nthinking: low\n---\nCheck the page.\n',
+            INSTALLED,
         );
         expect(job).toMatchObject({
             name: "mac-studio",
@@ -13,7 +16,7 @@ describe("parseJob", () => {
             model: { provider: "anthropic", modelId: "claude-haiku-5-5" },
             thinking: "low",
             enabled: true,
-            tools: ["web_search", "web_fetch", "notify"],
+            tools: ["notify", "web_search", "web_fetch"],
             prompt: "Check the page.",
         });
         expect(job.command).toBeUndefined();
@@ -23,20 +26,21 @@ describe("parseJob", () => {
         const job = parseJob(
             "/jobs/agent-audit.md",
             "---\nschedule: 0 9 * * 1\ncommand: /usr/bin/python3 ~/audit.py --days 8\ntools: notify\n---\nTriage.",
+            INSTALLED,
         );
         expect(job.command).toBe("/usr/bin/python3 ~/audit.py --days 8");
         expect(job.tools).toEqual(["job_command", "notify"]);
     });
 
     it("rejects unknown keys and bad schedules", () => {
-        expect(() => parseJob("/jobs/a.md", "---\nschedule: 0 9 * * *\ncron: x\n---\nx")).toThrow(
+        expect(() => parseJob("/jobs/a.md", "---\nschedule: 0 9 * * *\ncron: x\n---\nx", INSTALLED)).toThrow(
             /unknown frontmatter key/,
         );
-        expect(() => parseJob("/jobs/a.md", "---\nschedule: every 6h\n---\nx")).toThrow(/5-field/);
-        expect(() => parseJob("/jobs/Bad.md", "---\nschedule: 0 9 * * *\n---\nx")).toThrow(/file name/);
-        expect(() => parseJob("/jobs/a.md", "---\nschedule: 0 9 * * *\ntools: notify, bash\n---\nx")).toThrow(
-            /unknown tool "bash"/,
-        );
+        expect(() => parseJob("/jobs/a.md", "---\nschedule: every 6h\n---\nx", INSTALLED)).toThrow(/5-field/);
+        expect(() => parseJob("/jobs/Bad.md", "---\nschedule: 0 9 * * *\n---\nx", INSTALLED)).toThrow(/file name/);
+        expect(() =>
+            parseJob("/jobs/a.md", "---\nschedule: 0 9 * * *\ntools: notify, bash\n---\nx", INSTALLED),
+        ).toThrow(/unknown tool "bash"/);
     });
 });
 

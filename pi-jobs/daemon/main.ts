@@ -8,10 +8,11 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { createRegistry, Harness } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
+import { createWebTools } from "@ferologics/pi-web/durable";
 import { DEFAULT_PORT } from "../api.js";
 import { JobRunner } from "./runner.js";
 import { startServer } from "./server.js";
-import { createJobTools } from "./tools.js";
+import { createJobTools, secret } from "./tools.js";
 
 const run = promisify(execFile);
 const context = BACKGROUND_CONTEXT;
@@ -44,20 +45,23 @@ mkdirSync(jobsDir, { recursive: true });
 
 const models = await ModelRuntime.create({ authPath });
 let runner: JobRunner | undefined;
-const tools = createJobTools({
-    piCredential: async (provider) => (await models.getAuth(provider))?.auth.apiKey,
-    command: (conversationId) => runner!.command(conversationId),
-    notify: (conversationId, item) => runner!.notify(conversationId, item),
-});
 const registry = createRegistry();
-registry.install(tools);
+registry.install(
+    createJobTools({
+        command: (conversationId) => runner!.command(conversationId),
+        notify: (conversationId, item) => runner!.notify(conversationId, item),
+    }),
+);
+registry.install(
+    createWebTools({ secret, credential: async (provider) => (await models.getAuth(provider))?.auth.apiKey }),
+);
 
 const harness = await Harness.open(
     await openNodeSqliteStorage(join(stateDir, "jobs.sqlite")),
-    { models, registry, settings: { extensions: [tools] } },
+    { models, registry },
     context,
 );
-runner = new JobRunner(harness, { jobsDir, tools: tools.tools ?? [], log, desktopNotify });
+runner = new JobRunner(harness, { jobsDir, registry, log, desktopNotify });
 harness.resume();
 await runner.recover();
 

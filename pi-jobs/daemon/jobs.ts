@@ -23,8 +23,7 @@ export interface JobDefinition {
 }
 
 export const DEFAULT_MODEL = "anthropic/claude-sonnet-5-5";
-/** Tools a job can list in `tools`; job_command is added on its own when the job has a `command`. */
-export const JOB_TOOLS = ["web_search", "web_fetch", "notify"];
+/** Added to a job's tools by its `command`; never listed in `tools`. */
 export const COMMAND_TOOL = "job_command";
 
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
@@ -57,17 +56,20 @@ export function parseModel(value: string): JobModel {
     return { provider: value.slice(0, slash), modelId: value.slice(slash + 1) };
 }
 
-function parseTools(value: string | undefined): string[] {
-    if (value === undefined) return [...JOB_TOOLS];
+/** A job's `tools`: a subset of the daemon's installed tools, all of them by default; job_command comes from `command`. */
+function parseTools(value: string | undefined, installed: readonly string[]): string[] {
+    const available = installed.filter((tool) => tool !== COMMAND_TOOL);
+    if (value === undefined) return [...available];
     const tools = [...new Set(value.split(",").map((tool) => tool.trim()))].filter(Boolean);
-    if (tools.length === 0) throw new Error(`tools must list at least one of ${JOB_TOOLS.join(", ")}`);
+    if (tools.length === 0) throw new Error(`tools must list at least one of ${available.join(", ")}`);
     for (const tool of tools) {
-        if (!JOB_TOOLS.includes(tool)) throw new Error(`unknown tool "${tool}" (known: ${JOB_TOOLS.join(", ")})`);
+        if (!available.includes(tool)) throw new Error(`unknown tool "${tool}" (available: ${available.join(", ")})`);
     }
     return tools;
 }
 
-export function parseJob(file: string, text: string): JobDefinition {
+/** `installed` names the daemon's registered tools, which a job's `tools` must come from. */
+export function parseJob(file: string, text: string, installed: readonly string[]): JobDefinition {
     const name = basename(file, ".md");
     if (!NAME.test(name)) throw new Error(`job file name must match ${NAME} (lowercase, digits, dashes)`);
     const { fields, body } = parseFrontmatter(text);
@@ -83,7 +85,7 @@ export function parseJob(file: string, text: string): JobDefinition {
         throw new Error("enabled must be true or false");
     }
     if (fields.command !== undefined && !fields.command) throw new Error("command is empty");
-    const tools = parseTools(fields.tools);
+    const tools = parseTools(fields.tools, installed);
     if (!body) throw new Error("the prompt (markdown body) is empty");
     return {
         name,
@@ -98,7 +100,7 @@ export function parseJob(file: string, text: string): JobDefinition {
     };
 }
 
-export function loadJobs(dir: string): { jobs: JobDefinition[]; errors: JobError[] } {
+export function loadJobs(dir: string, installed: readonly string[]): { jobs: JobDefinition[]; errors: JobError[] } {
     const jobs: JobDefinition[] = [];
     const errors: JobError[] = [];
     let files: string[];
@@ -111,7 +113,7 @@ export function loadJobs(dir: string): { jobs: JobDefinition[]; errors: JobError
     for (const file of files.sort()) {
         const path = join(dir, file);
         try {
-            jobs.push(parseJob(path, readFileSync(path, "utf8")));
+            jobs.push(parseJob(path, readFileSync(path, "utf8"), installed));
         } catch (error) {
             errors.push({ file: path, error: error instanceof Error ? error.message : String(error) });
         }

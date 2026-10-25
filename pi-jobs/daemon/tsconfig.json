@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["*.ts", "../../pi-web/turndown-plugin-gfm.d.ts"]
+  "include": ["*.ts", "node_modules/@ferologics/pi-web/turndown-plugin-gfm.d.ts"]
 }

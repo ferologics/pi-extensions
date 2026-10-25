@@ -47,7 +47,7 @@ Current extensions:
 
 ## pi-jobs daemon
 
-`pi-jobs/` is both an extension (`index.ts`, a client) and a daemon (`pi-jobs/daemon/`). The daemon is a separate Node program with its own `package.json`, exact-pinned Pi Durable dependencies, and its own `tsconfig.json`; the root `tsconfig.json` excludes it and `just compile` type-checks it with `tsc -p pi-jobs/daemon`. It runs on Node's built-in type stripping (no build step); `daemon/resolve-ts.mjs` maps relative `.js` imports to `.ts` so it can import `pi-web`'s search/fetch modules by relative path. Type stripping does not support enums or constructor parameter properties, so daemon code avoids them. See `pi-jobs/README.md` for install and runtime details.
+`pi-jobs/` is both an extension (`index.ts`, a client) and a daemon (`pi-jobs/daemon/`). The daemon is a separate Node program with its own `package.json`, exact-pinned Pi Durable dependencies, and its own `tsconfig.json`; the root `tsconfig.json` excludes it and `just compile` type-checks it with `tsc -p pi-jobs/daemon`. Its web tools come from the published `@ferologics/pi-web/durable` (exact-pinned), not from `../pi-web`. It runs on Node's built-in type stripping (no build step): `daemon/resolve-ts.mjs` maps relative `.js` imports to `.ts` and strips types from `.ts` files under `node_modules`, which Node refuses to do itself, and the daemon runs with `--disable-warning=ExperimentalWarning` because that stripping API is experimental. Type stripping does not support enums or constructor parameter properties, so daemon code avoids them. See `pi-jobs/README.md` for install and runtime details.
 
 ## Type Checking
 

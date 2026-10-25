@@ -8,6 +8,7 @@ import {
     defineDoc,
     type Harness,
     type JsonObject,
+    type RegistryReader,
     ResetEntry,
     type SubmissionId,
     type ToolRegistration,
@@ -77,8 +78,8 @@ function answerText(message: AssistantMessage | undefined): string {
 
 export interface RunnerOptions {
     jobsDir: string;
-    /** Every tool the daemon registers; a job's agent enables the ones its definition lists. */
-    tools: readonly ToolRegistration[];
+    /** The harness registry; a job's agent enables the installed tools its definition lists. */
+    registry: RegistryReader;
     log(message: string): void;
     desktopNotify(title: string, message: string): Promise<void>;
 }
@@ -110,10 +111,26 @@ export class JobRunner {
         return conversation;
     }
 
+    private installedTools(): string[] {
+        return [
+            ...new Set(
+                this.options.registry
+                    .snapshot()
+                    .tools()
+                    .map(({ tool }) => tool.name),
+            ),
+        ];
+    }
+
+    private loadJobs(): ReturnType<typeof loadJobs> {
+        return loadJobs(this.options.jobsDir, this.installedTools());
+    }
+
     private enabledTools(job: JobDefinition): ToolRegistration[] {
+        const installed = this.options.registry.snapshot().tools();
         return job.tools.map((name) => {
-            const tool = this.options.tools.find((candidate) => candidate.name === name);
-            if (!tool) throw new Error(`tool ${name} is not registered`);
+            const tool = installed.find((candidate) => candidate.tool.name === name)?.tool;
+            if (!tool) throw new Error(`tool ${name} is not installed`);
             return tool;
         });
     }
@@ -157,7 +174,7 @@ export class JobRunner {
 
     /** One scheduler pass: submit every enabled job whose latest slot has not run yet. */
     async tick(now = new Date()): Promise<void> {
-        const { jobs, errors } = loadJobs(this.options.jobsDir);
+        const { jobs, errors } = this.loadJobs();
         for (const error of errors) this.options.log(`invalid job ${error.file}: ${error.error}`);
         for (const job of jobs) {
             try {
@@ -178,7 +195,7 @@ export class JobRunner {
 
     /** Admit one run; the requestId makes a repeat after a crash return the same submission. */
     async submit(name: string, trigger: RunTrigger, slot?: string): Promise<RunRecord> {
-        const job = loadJobs(this.options.jobsDir).jobs.find((candidate) => candidate.name === name);
+        const job = this.loadJobs().jobs.find((candidate) => candidate.name === name);
         if (!job) throw new Error(`unknown job "${name}"`);
         const state = await this.sync(job);
         if (state.runs.some((run) => run.status === "running"))
@@ -274,7 +291,7 @@ export class JobRunner {
 
     async command(conversationId: number): Promise<string | undefined> {
         const name = await this.jobName(conversationId);
-        return loadJobs(this.options.jobsDir).jobs.find((job) => job.name === name)?.command;
+        return this.loadJobs().jobs.find((job) => job.name === name)?.command;
     }
 
     async notify(conversationId: number, item: { title: string; message: string; url?: string }): Promise<void> {
@@ -311,7 +328,7 @@ export class JobRunner {
     }
 
     async list(): Promise<JobsResponse> {
-        const { jobs, errors } = loadJobs(this.options.jobsDir);
+        const { jobs, errors } = this.loadJobs();
         const state = await this.state();
         const now = new Date();
         return {
@@ -322,7 +339,7 @@ export class JobRunner {
     }
 
     async detail(name: string): Promise<JobDetail | undefined> {
-        const job = loadJobs(this.options.jobsDir).jobs.find((candidate) => candidate.name === name);
+        const job = this.loadJobs().jobs.find((candidate) => candidate.name === name);
         if (!job) return undefined;
         const state = (await this.state()).jobs[name];
         return {
