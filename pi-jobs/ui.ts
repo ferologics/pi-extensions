@@ -143,6 +143,8 @@ export class JobsOverlay implements Component {
         const lines = [
             `${th.bold(detail.name)} ${th.fg("dim", `${detail.schedule} · ${detail.model}${detail.enabled ? "" : " · disabled"}`)}`,
             th.fg("dim", detail.file),
+            th.fg("dim", `tools: ${detail.tools.join(", ")}`),
+            ...(detail.command ? [th.fg("dim", `command: ${detail.command}`)] : []),
             "",
         ];
         for (const line of wrapTextWithAnsi(detail.prompt, width)) lines.push(th.fg("muted", line));

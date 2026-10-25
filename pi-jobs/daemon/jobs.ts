@@ -15,13 +15,20 @@ export interface JobDefinition {
     model: JobModel;
     thinking?: string;
     enabled: boolean;
+    /** Shell command the job_command tool runs (`/bin/sh -c`, from the home directory). */
+    command?: string;
+    /** Tools the job's runs may call, job_command first when `command` is set. */
+    tools: string[];
     prompt: string;
 }
 
 export const DEFAULT_MODEL = "anthropic/claude-sonnet-5-5";
+/** Tools a job can list in `tools`; job_command is added on its own when the job has a `command`. */
+export const JOB_TOOLS = ["web_search", "web_fetch", "notify"];
+export const COMMAND_TOOL = "job_command";
 
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
-const KEYS = new Set(["schedule", "model", "thinking", "enabled"]);
+const KEYS = new Set(["schedule", "model", "thinking", "enabled", "command", "tools"]);
 const THINKING = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
 
 /** Split `---` frontmatter of flat `key: value` lines from the markdown body. */
@@ -50,6 +57,16 @@ export function parseModel(value: string): JobModel {
     return { provider: value.slice(0, slash), modelId: value.slice(slash + 1) };
 }
 
+function parseTools(value: string | undefined): string[] {
+    if (value === undefined) return [...JOB_TOOLS];
+    const tools = [...new Set(value.split(",").map((tool) => tool.trim()))].filter(Boolean);
+    if (tools.length === 0) throw new Error(`tools must list at least one of ${JOB_TOOLS.join(", ")}`);
+    for (const tool of tools) {
+        if (!JOB_TOOLS.includes(tool)) throw new Error(`unknown tool "${tool}" (known: ${JOB_TOOLS.join(", ")})`);
+    }
+    return tools;
+}
+
 export function parseJob(file: string, text: string): JobDefinition {
     const name = basename(file, ".md");
     if (!NAME.test(name)) throw new Error(`job file name must match ${NAME} (lowercase, digits, dashes)`);
@@ -65,6 +82,8 @@ export function parseJob(file: string, text: string): JobDefinition {
     if (fields.enabled && fields.enabled !== "true" && fields.enabled !== "false") {
         throw new Error("enabled must be true or false");
     }
+    if (fields.command !== undefined && !fields.command) throw new Error("command is empty");
+    const tools = parseTools(fields.tools);
     if (!body) throw new Error("the prompt (markdown body) is empty");
     return {
         name,
@@ -73,6 +92,8 @@ export function parseJob(file: string, text: string): JobDefinition {
         model: parseModel(fields.model ?? DEFAULT_MODEL),
         thinking: fields.thinking,
         enabled: fields.enabled !== "false",
+        ...(fields.command ? { command: fields.command } : {}),
+        tools: fields.command ? [COMMAND_TOOL, ...tools] : tools,
         prompt: body,
     };
 }

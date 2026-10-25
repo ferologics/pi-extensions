@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { StringEnum, Type } from "@earendil-works/pi-ai";
@@ -12,8 +12,11 @@ import { searchCodex } from "../../pi-web/codex.js";
 import { fetchExaPage, searchExa } from "../../pi-web/exa.js";
 import { fetchPage, type Page, parseHttpUrl } from "../../pi-web/fetch.js";
 import { FRESHNESS, formatSearchResult, type SearchRequest, type SearchResult } from "../../pi-web/results.js";
+import { COMMAND_TOOL } from "./jobs.js";
 
 const run = promisify(execFile);
+const COMMAND_TIMEOUT_MS = 10 * 60_000;
+const COMMAND_MAX_BUFFER = 32 * 1024 * 1024;
 
 /** Search providers available to jobs; google needs pi-antigravity's in-process search and is left out. */
 const PROVIDERS = ["exa", "brave", "claude", "codex"] as const;
@@ -22,6 +25,8 @@ type Provider = (typeof PROVIDERS)[number];
 export interface ToolHost {
     /** OAuth/API key Pi stores for a provider (auth.json). */
     piCredential(provider: string): Promise<string | undefined>;
+    /** The `command` of the job that owns a conversation. */
+    command(conversationId: number): Promise<string | undefined>;
     /** Record an inbox item and show a desktop notification. */
     notify(conversationId: number, item: { title: string; message: string; url?: string }): Promise<void>;
 }
@@ -58,6 +63,42 @@ async function truncateForModel(text: string, label: string): Promise<string> {
     const path = join(await mkdtemp(join(tmpdir(), `pi-jobs-${label}-`)), "output.md");
     await writeFile(path, text, "utf8");
     return `${truncation.content}\n\n[Truncated to ${truncation.outputLines} of ${truncation.totalLines} lines. Full output: ${path}]`;
+}
+
+type CommandFailure = Error & {
+    stdout?: string;
+    stderr?: string;
+    code?: number | string;
+    killed?: boolean;
+    signal?: string;
+};
+
+/** Run a job's command through /bin/sh from the home directory; a nonzero exit or timeout still returns its output. */
+async function runCommand(command: string): Promise<{ text: string; failed: boolean }> {
+    let stdout: string;
+    let stderr: string;
+    let status: string;
+    let failed = false;
+    try {
+        ({ stdout, stderr } = await run("/bin/sh", ["-c", command], {
+            cwd: homedir(),
+            timeout: COMMAND_TIMEOUT_MS,
+            maxBuffer: COMMAND_MAX_BUFFER,
+        }));
+        status = "exit code 0";
+    } catch (error) {
+        const failure = error as CommandFailure;
+        if (failure.stdout === undefined) throw error;
+        stdout = failure.stdout;
+        stderr = failure.stderr ?? "";
+        failed = true;
+        status = failure.killed
+            ? `killed by ${failure.signal ?? "a signal"} (timeout ${COMMAND_TIMEOUT_MS / 60_000} min)`
+            : `exit code ${failure.code}`;
+    }
+    const parts = [`$ ${command}`, status, "", stdout.trimEnd()];
+    if (stderr.trim()) parts.push("", "stderr:", stderr.trimEnd());
+    return { text: parts.join("\n"), failed };
 }
 
 function formatPage(page: Page, via: string): string {
@@ -137,6 +178,20 @@ export function createJobTools(host: ToolHost): Extension {
         },
     });
 
+    // Not replay-safe: a command may have side effects, so a crash mid-call reports it as interrupted.
+    const jobCommand = defineTool({
+        name: COMMAND_TOOL,
+        description: "Run this job's configured command on the user's Mac and return its exit status and output.",
+        parameters: Type.Object({}),
+        execute: async (_args, api) => {
+            const command = await host.command(api.conversationId);
+            if (!command) throw new Error("This job has no command.");
+            api.output(`running ${command}\n`);
+            const { text, failed } = await runCommand(command);
+            return { output: [{ type: "text", text: await truncateForModel(text, "command") }], isError: failed };
+        },
+    });
+
     // Not replay-safe: a crash mid-call reports the call as interrupted instead of notifying twice.
     const notify = defineTool({
         name: "notify",
@@ -154,5 +209,5 @@ export function createJobTools(host: ToolHost): Extension {
         },
     });
 
-    return defineExtension({ name: "pi-jobs", tools: [webSearch, webFetch, notify] });
+    return defineExtension({ name: "pi-jobs", tools: [jobCommand, webSearch, webFetch, notify] });
 }

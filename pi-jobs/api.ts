@@ -25,6 +25,10 @@ export interface JobSummary {
     model: string;
     enabled: boolean;
     file: string;
+    /** Tools the job's runs may call. */
+    tools: string[];
+    /** Shell command the job_command tool runs. */
+    command?: string;
     nextRun?: string;
     lastRun?: RunRecord;
     running: boolean;

@@ -46,6 +46,7 @@ const models = await ModelRuntime.create({ authPath });
 let runner: JobRunner | undefined;
 const tools = createJobTools({
     piCredential: async (provider) => (await models.getAuth(provider))?.auth.apiKey,
+    command: (conversationId) => runner!.command(conversationId),
     notify: (conversationId, item) => runner!.notify(conversationId, item),
 });
 const registry = createRegistry();
@@ -56,7 +57,7 @@ const harness = await Harness.open(
     { models, registry, settings: { extensions: [tools] } },
     context,
 );
-runner = new JobRunner(harness, { jobsDir, log, desktopNotify });
+runner = new JobRunner(harness, { jobsDir, tools: tools.tools ?? [], log, desktopNotify });
 harness.resume();
 await runner.recover();
 

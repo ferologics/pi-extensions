@@ -10,7 +10,7 @@ Jobs run whether or not a Pi session is open. Each job keeps one conversation ac
 - **Daemon** (`daemon/`): a Node process kept alive by launchd. It opens a Pi Durable harness on `~/.local/state/pi-jobs/jobs.sqlite`, uses Pi's logins from `~/.pi/agent/auth.json`, and serves an HTTP API on `127.0.0.1:4747`.
 - **Scheduling:** every 30 seconds the daemon computes each job's latest cron slot from the wall clock and submits it once, keyed `<job>@<slot>`. Pi Durable's `requestId` makes the submission exactly-once, so a crash or restart never runs a slot twice. Slots missed while the Mac slept or the daemon was down collapse into the latest one. A new job waits for its first slot.
 - **Crash recovery:** every model turn and tool call is checkpointed. A daemon killed mid-run continues that run on restart.
-- **Tools in job runs:** `web_search` (Exa, Brave, Claude, Codex; shared with [`pi-web`](../pi-web/)), `web_fetch`, and `notify` (desktop notification plus inbox item).
+- **Tools in job runs:** `web_search` (Exa, Brave, Claude, Codex; shared with [`pi-web`](../pi-web/)), `web_fetch`, and `notify` (desktop notification plus inbox item), or the subset a job lists in `tools`. A job with a `command` also gets `job_command`, which runs that command and returns its exit status and output.
 - **Pi extension** (`index.ts`): `/jobs` overlay, `jobs_list` / `jobs_run` / `jobs_results` tools, and a footer status when the inbox has new items.
 
 ## Job definition
@@ -21,6 +21,7 @@ schedule: "0 */6 * * *" # 5-field cron, local time (required)
 model: anthropic/claude-sonnet-5-5 # provider/modelId (default shown)
 thinking: low # off | minimal | low | medium | high | xhigh (optional)
 enabled: true # optional, default true
+tools: web_fetch, notify # optional; default web_search, web_fetch, notify
 ---
 
 Watch for a new Pi release.
@@ -30,6 +31,22 @@ Notify with the version and its headline changes when it is newer than the one t
 ```
 
 The body is the job's standing task. Say exactly when to call `notify`; every run ends with a short summary that shows up in `/jobs` and `jobs_results`. Changing a definition reconfigures the job's conversation before its next run.
+
+### Command jobs
+
+```markdown
+---
+schedule: "0 10 * * 1"
+command: /usr/bin/python3 ~/bin/audit.py --days 8
+tools: notify
+---
+
+Triage the audit report. Notify about real findings that earlier runs have not reported.
+```
+
+`command` gives the job a `job_command` tool, and its instructions tell each run to call it first. The model cannot pass arguments: the tool runs exactly the configured command through `/bin/sh -c` from the home directory, with a 10 minute timeout, and returns the exit status, stdout, and stderr (long output is cut to Pi's tool output limit; the full text goes to a temp file). It is not replay-safe, so a daemon crash mid-command reports the call as interrupted instead of running it again. The daemon runs under launchd, so `PATH` is the launchd default (`/usr/bin:/bin:/usr/sbin:/sbin`); use absolute paths for anything else.
+
+A command whose output contains untrusted text (scraped pages, logs, agent transcripts) can carry prompt injection into the run. Give such jobs `tools: notify`, so the worst a hostile output can do is a misleading notification, not a web request that leaks the output.
 
 ## Install
 

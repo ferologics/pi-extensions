@@ -13,8 +13,19 @@ describe("parseJob", () => {
             model: { provider: "anthropic", modelId: "claude-haiku-5-5" },
             thinking: "low",
             enabled: true,
+            tools: ["web_search", "web_fetch", "notify"],
             prompt: "Check the page.",
         });
+        expect(job.command).toBeUndefined();
+    });
+
+    it("puts job_command first for a command job and keeps only the listed tools", () => {
+        const job = parseJob(
+            "/jobs/agent-audit.md",
+            "---\nschedule: 0 9 * * 1\ncommand: /usr/bin/python3 ~/audit.py --days 8\ntools: notify\n---\nTriage.",
+        );
+        expect(job.command).toBe("/usr/bin/python3 ~/audit.py --days 8");
+        expect(job.tools).toEqual(["job_command", "notify"]);
     });
 
     it("rejects unknown keys and bad schedules", () => {
@@ -23,6 +34,9 @@ describe("parseJob", () => {
         );
         expect(() => parseJob("/jobs/a.md", "---\nschedule: every 6h\n---\nx")).toThrow(/5-field/);
         expect(() => parseJob("/jobs/Bad.md", "---\nschedule: 0 9 * * *\n---\nx")).toThrow(/file name/);
+        expect(() => parseJob("/jobs/a.md", "---\nschedule: 0 9 * * *\ntools: notify, bash\n---\nx")).toThrow(
+            /unknown tool "bash"/,
+        );
     });
 });
 

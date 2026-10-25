@@ -5,7 +5,6 @@
 - [ ] Run the first real jobs for a week and tune the instructions/notify rules from what they do.
 - [ ] Per-run cost guard (max turns or tokens per run) and per-job cost in `/jobs`.
 - [ ] Keep job conversations bounded: compaction works, but consider `reset()` with a handoff note after N runs.
-- [ ] Shell jobs: a job that runs a command (for example `lpse.py scan`) and has the agent summarize or notify on its output.
 
 ## Standalone repo
 

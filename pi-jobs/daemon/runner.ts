@@ -9,9 +9,10 @@ import {
     type Harness,
     type JsonObject,
     type SubmissionId,
+    type ToolRegistration,
 } from "@earendil-works/pi-durable";
 import type { InboxItem, JobDetail, JobsResponse, JobSummary, RunRecord, RunTrigger } from "../api.js";
-import { type JobDefinition, latestSlot, loadJobs, nextSlot } from "./jobs.js";
+import { COMMAND_TOOL, type JobDefinition, latestSlot, loadJobs, nextSlot } from "./jobs.js";
 
 const context = BACKGROUND_CONTEXT;
 const MAX_RUNS = 30;
@@ -47,6 +48,11 @@ function instructions(job: JobDefinition): string {
         "Each user message starts one run. Earlier runs are above in this conversation; compare against them to tell what is new.",
         "Call the notify tool only when the task below says the finding needs the user's attention. Never notify about nothing new.",
         "End every run with a short plain-text summary of what you checked and what you found.",
+        ...(job.command
+            ? [
+                  `Start every run by calling ${COMMAND_TOOL}; it runs \`${job.command}\` and its output is what the run is about.`,
+              ]
+            : []),
         "",
         "Task:",
         job.prompt,
@@ -61,6 +67,8 @@ function answerText(message: AssistantMessage | undefined): string {
 
 export interface RunnerOptions {
     jobsDir: string;
+    /** Every tool the daemon registers; a job's agent enables the ones its definition lists. */
+    tools: readonly ToolRegistration[];
     log(message: string): void;
     desktopNotify(title: string, message: string): Promise<void>;
 }
@@ -89,11 +97,20 @@ export class JobRunner {
         return conversation;
     }
 
+    private enabledTools(job: JobDefinition): ToolRegistration[] {
+        return job.tools.map((name) => {
+            const tool = this.options.tools.find((candidate) => candidate.name === name);
+            if (!tool) throw new Error(`tool ${name} is not registered`);
+            return tool;
+        });
+    }
+
     /** Create the job's conversation on first sight and keep its agent in line with the definition. */
     private async sync(job: JobDefinition): Promise<JobState> {
         // null clears a field back to the host default, so removing `thinking` from a definition takes effect.
-        const agent = { model: job.model, thinkingLevel: job.thinking ?? null, instructions: instructions(job) };
-        const config = JSON.stringify(agent);
+        const settings = { model: job.model, thinkingLevel: job.thinking ?? null, instructions: instructions(job) };
+        const agent = { ...settings, tools: this.enabledTools(job) };
+        const config = JSON.stringify({ ...settings, tools: job.tools });
         const existing = (await this.state()).jobs[job.name];
         if (existing) {
             if (existing.config !== config) {
@@ -108,11 +125,7 @@ export class JobRunner {
         const conversation = await this.harness.createConversation(
             {
                 ownership: { kind: "ownerless" },
-                agent: {
-                    model: job.model,
-                    instructions: instructions(job),
-                    ...(job.thinking ? { thinkingLevel: job.thinking } : {}),
-                } as never,
+                agent: agent as never,
             },
             context,
         );
@@ -220,10 +233,18 @@ export class JobRunner {
         this.options.log(`${name}: run ${run.requestId} ${patch.status}`);
     }
 
-    async notify(conversationId: number, item: { title: string; message: string; url?: string }): Promise<void> {
+    private async jobName(conversationId: number): Promise<string | undefined> {
         const state = await this.state();
-        const name = Object.entries(state.jobs).find(([, job]) => job.conversationId === conversationId)?.[0];
-        const job = name ?? "unknown";
+        return Object.entries(state.jobs).find(([, job]) => job.conversationId === conversationId)?.[0];
+    }
+
+    async command(conversationId: number): Promise<string | undefined> {
+        const name = await this.jobName(conversationId);
+        return loadJobs(this.options.jobsDir).jobs.find((job) => job.name === name)?.command;
+    }
+
+    async notify(conversationId: number, item: { title: string; message: string; url?: string }): Promise<void> {
+        const job = (await this.jobName(conversationId)) ?? "unknown";
         await this.update((current) => {
             current.inbox.push({
                 id: randomUUID(),
@@ -247,6 +268,8 @@ export class JobRunner {
             model: `${job.model.provider}/${job.model.modelId}`,
             enabled: job.enabled,
             file: job.file,
+            tools: job.tools,
+            ...(job.command ? { command: job.command } : {}),
             ...(job.enabled ? { nextRun: nextSlot(job.schedule, now).toISOString() } : {}),
             ...(lastRun ? { lastRun } : {}),
             running: state?.runs.some((run) => run.status === "running") ?? false,
