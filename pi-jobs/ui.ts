@@ -1,6 +1,7 @@
-import type { Theme } from "@earendil-works/pi-coding-agent";
+import { getMarkdownTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import {
     type Component,
+    Markdown,
     matchesKey,
     type TUI,
     truncateToWidth,
@@ -9,8 +10,16 @@ import {
 } from "@earendil-works/pi-tui";
 import type { InboxItem, JobDetail, JobsResponse, RunRecord } from "./api.js";
 import { ago, client, lastRunLabel } from "./client.js";
+import { reflow } from "./markdown.js";
 
 const REFRESH_MS = 3000;
+
+/** Render Markdown with Pi's theme, rewrapping hard-wrapped source lines to `width`. */
+function markdownLines(text: string, width: number, color?: (text: string) => string): string[] {
+    if (!text.trim()) return [];
+    const markdown = new Markdown(reflow(text), 0, 0, getMarkdownTheme(), color ? { color } : undefined);
+    return markdown.render(width).map((line) => line.trimEnd());
+}
 
 function statusColor(run: RunRecord | undefined): "success" | "error" | "warning" | "dim" {
     switch (run?.status) {
@@ -147,7 +156,7 @@ export class JobsOverlay implements Component {
             ...(detail.command ? [th.fg("dim", `command: ${detail.command}`)] : []),
             "",
         ];
-        for (const line of wrapTextWithAnsi(detail.prompt, width)) lines.push(th.fg("muted", line));
+        lines.push(...markdownLines(detail.prompt, width, (text) => th.fg("muted", text)));
         lines.push("");
         if (detail.runs.length === 0) lines.push(th.fg("dim", "No runs yet."));
         detail.runs.forEach((run, index) => {
@@ -158,7 +167,8 @@ export class JobsOverlay implements Component {
             const text = run.error ?? run.answer ?? "";
             // Full text for the latest run, first line for older ones.
             const shown = index === 0 ? text : text.split("\n")[0];
-            for (const line of wrapTextWithAnsi(shown, width - 2)) lines.push(`  ${line}`);
+            const rendered = markdownLines(shown, width - 2);
+            for (const line of index === 0 ? rendered : rendered.slice(0, 1)) lines.push(`  ${line}`);
             lines.push("");
         });
         return lines;
