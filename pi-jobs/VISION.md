@@ -5,7 +5,8 @@ pi-jobs is the one place for recurring agent work: website and news watches, rel
 ## Goals
 
 - Jobs outlive Pi sessions and the machine they were written on: a daemon owns them, Pi is one client.
-- Each job keeps continuity across runs and runs each slot exactly once, through Pi Durable.
+- Each job runs each slot exactly once through Pi Durable, and carries what it knows from run to run in a handoff summary.
+- pi-jobs owns only what is about jobs (`notify`, `job_command`). Every other tool comes from the package that owns it, through its Pi Durable adapter (pi-web's `web_search` and `web_fetch`).
 - One definition format (a markdown file per job) that a person or an agent can write.
 - Notify only when something needs attention; everything else stays readable in the job's history.
 

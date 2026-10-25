@@ -41,6 +41,8 @@ export interface JobError {
 
 export interface JobsResponse {
     jobsDir: string;
+    /** Tools a job can list in `tools` (every installed tool except job_command, which comes from `command`). */
+    tools: string[];
     jobs: JobSummary[];
     errors: JobError[];
 }

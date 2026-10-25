@@ -31,7 +31,7 @@ Check https://github.com/earendil-works/pi/releases with web_fetch and find the 
 Notify with the version and its headline changes when it is newer than the one the last run saw. Do not notify when nothing changed.
 ```
 
-The body is the job's standing task. Say exactly when to call `notify`; every run ends with a short summary that shows up in `/jobs` and `jobs_results`. Changing a definition reconfigures the job's conversation before its next run.
+The body is the job's standing task. Say exactly when to call `notify`. Every run ends with a summary of what it checked, found, and notified about, plus the current state of what it watches; the next run starts from that summary, and `/jobs` and `jobs_results` show it. Changing a definition reconfigures the job's conversation before its next run.
 
 ### Command jobs
 
@@ -63,18 +63,18 @@ just uninstall  # stop and remove the agent (keeps jobs and state)
 
 ### Secrets
 
-`EXA_API_KEY` and `BRAVE_API_KEY` come from the daemon's environment, then from `launchctl getenv`, which the Pi secrets bootstrap in fish fills. After a reboot, Exa and Brave searches fail until a shell has warmed that cache; `web_fetch` and the Claude/Codex search providers only need Pi's logins.
+`EXA_API_KEY` and `BRAVE_API_KEY` come from the daemon's environment, then from `launchctl getenv`, which the Pi secrets bootstrap in fish fills. After a reboot, Exa and Brave searches and `web_fetch`'s Exa fallback fail until a shell has warmed that cache. A direct `web_fetch` needs no key, and the Claude and Codex search providers use Pi's logins.
 
 ## HTTP API
 
-| Method | Path                  | Returns                                        |
-| ------ | --------------------- | ---------------------------------------------- |
-| GET    | `/api/health`         | `{ ok, pid }`                                  |
-| GET    | `/api/jobs`           | Jobs with last run and next run, invalid files |
-| GET    | `/api/jobs/:name`     | One job with its prompt and recent runs        |
-| POST   | `/api/jobs/:name/run` | Starts a manual run                            |
-| GET    | `/api/inbox`          | Notifications, newest first                    |
-| POST   | `/api/inbox/read`     | Marks every inbox item read                    |
+| Method | Path                  | Returns                                                            |
+| ------ | --------------------- | ------------------------------------------------------------------ |
+| GET    | `/api/health`         | `{ ok, pid }`                                                      |
+| GET    | `/api/jobs`           | Jobs with last and next run, the tools jobs can use, invalid files |
+| GET    | `/api/jobs/:name`     | One job with its prompt and recent runs                            |
+| POST   | `/api/jobs/:name/run` | Starts a manual run                                                |
+| GET    | `/api/inbox`          | Notifications, newest first                                        |
+| POST   | `/api/inbox/read`     | Marks every inbox item read                                        |
 
 The API has no authentication, so it refuses browser traffic: any request with an `Origin` header gets a 403, and so does any request whose `Host` is not the address the daemon listens on (`127.0.0.1:4747` or `localhost:4747` by default). That stops web pages from triggering runs or reading results, including through DNS rebinding. Command-line clients and Node's `fetch` send no `Origin`, so they work unchanged.
 

@@ -49,7 +49,7 @@ function instructions(job: JobDefinition): string {
         `You are "${job.name}", a scheduled job run by pi-jobs with no human watching.`,
         "Each user message starts one run. Every run after the first starts from a handoff note holding the previous run's summary; it is all you know about earlier runs, so compare against it to tell what is new.",
         "Call the notify tool only when the task below says the finding needs the user's attention. Never notify about nothing new.",
-        "End every run with a plain-text summary the next run can compare against: what you checked, what you found, and the current state of everything you watch (for example the latest version seen, or the entries currently listed).",
+        "End every run with a plain-text summary the next run can compare against: what you checked, what you found, what you notified about, and the current state of everything you watch (for example the latest version seen, or the entries currently listed).",
         ...(job.command
             ? [
                   `Start every run by calling ${COMMAND_TOOL}; it runs \`${job.command}\` and its output is what the run is about.`,
@@ -333,6 +333,7 @@ export class JobRunner {
         const now = new Date();
         return {
             jobsDir: this.options.jobsDir,
+            tools: this.installedTools().filter((tool) => tool !== COMMAND_TOOL),
             jobs: jobs.map((job) => this.summary(job, state.jobs[job.name], now)),
             errors,
         };
