@@ -75,6 +75,8 @@ just uninstall  # stop and remove the agent (keeps jobs and state)
 | GET    | `/api/inbox`          | Notifications, newest first                    |
 | POST   | `/api/inbox/read`     | Marks every inbox item read                    |
 
+The API has no authentication, so it refuses browser traffic: any request with an `Origin` header gets a 403, and so does any request whose `Host` is not the address the daemon listens on (`127.0.0.1:4747` or `localhost:4747` by default). That stops web pages from triggering runs or reading results, including through DNS rebinding. Command-line clients and Node's `fetch` send no `Origin`, so they work unchanged.
+
 ## Status
 
 Experimental. Pi Durable's API changes without notice, so the daemon pins `@earendil-works/pi-durable` and its siblings to the exact Pi version they were built against.
