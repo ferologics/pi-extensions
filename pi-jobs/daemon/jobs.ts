@@ -56,10 +56,13 @@ export function parseModel(value: string): JobModel {
     return { provider: value.slice(0, slash), modelId: value.slice(slash + 1) };
 }
 
-/** A job's `tools`: a subset of the daemon's installed tools, all of them by default; job_command comes from `command`. */
+/**
+ * A job's `tools`: required, a subset of the daemon's installed tools; job_command comes from `command`. There is no
+ * default, so a tool installed later never reaches a job whose file does not list it.
+ */
 function parseTools(value: string | undefined, installed: readonly string[]): string[] {
     const available = installed.filter((tool) => tool !== COMMAND_TOOL);
-    if (value === undefined) return [...available];
+    if (value === undefined) throw new Error(`tools is required (available: ${available.join(", ")})`);
     const tools = [...new Set(value.split(",").map((tool) => tool.trim()))].filter(Boolean);
     if (tools.length === 0) throw new Error(`tools must list at least one of ${available.join(", ")}`);
     for (const tool of tools) {

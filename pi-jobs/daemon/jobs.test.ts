@@ -7,7 +7,7 @@ describe("parseJob", () => {
     it("reads frontmatter and the prompt body", () => {
         const job = parseJob(
             "/jobs/mac-studio.md",
-            '---\nschedule: "0 */6 * * *" # every 6h\nmodel: anthropic/claude-haiku-5-5\nthinking: low\n---\nCheck the page.\n',
+            '---\nschedule: "0 */6 * * *" # every 6h\nmodel: anthropic/claude-haiku-5-5\nthinking: low\ntools: web_fetch, notify\n---\nCheck the page.\n',
             INSTALLED,
         );
         expect(job).toMatchObject({
@@ -16,7 +16,7 @@ describe("parseJob", () => {
             model: { provider: "anthropic", modelId: "claude-haiku-5-5" },
             thinking: "low",
             enabled: true,
-            tools: ["notify", "web_search", "web_fetch"],
+            tools: ["web_fetch", "notify"],
             prompt: "Check the page.",
         });
         expect(job.command).toBeUndefined();
@@ -32,7 +32,10 @@ describe("parseJob", () => {
         expect(job.tools).toEqual(["job_command", "notify"]);
     });
 
-    it("rejects unknown keys and bad schedules", () => {
+    it("rejects missing tools, unknown keys, and bad schedules", () => {
+        expect(() => parseJob("/jobs/a.md", "---\nschedule: 0 9 * * *\n---\nx", INSTALLED)).toThrow(
+            /tools is required/,
+        );
         expect(() => parseJob("/jobs/a.md", "---\nschedule: 0 9 * * *\ncron: x\n---\nx", INSTALLED)).toThrow(
             /unknown frontmatter key/,
         );
