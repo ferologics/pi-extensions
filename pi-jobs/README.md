@@ -2,13 +2,14 @@
 
 Scheduled agent jobs for Pi. A small daemon runs each job on a cron schedule as a [Pi Durable](https://earendil.com/posts/pi-durable/) conversation; the Pi extension shows the jobs, their results, and an inbox of notifications.
 
-Jobs run whether or not a Pi session is open. Each job keeps one conversation across runs, so a run can compare against earlier ones ("only notify when something changed").
+Jobs run whether or not a Pi session is open. Each job keeps one conversation, and every run starts from the previous run's summary, so a run can tell what changed ("only notify when something is new").
 
 ## How it works
 
 - **Definitions:** one markdown file per job in `~/.config/pi-jobs/jobs/<name>.md`. The daemon rereads them every 30 seconds.
 - **Daemon** (`daemon/`): a Node process kept alive by launchd. It opens a Pi Durable harness on `~/.local/state/pi-jobs/jobs.sqlite`, uses Pi's logins from `~/.pi/agent/auth.json`, and serves an HTTP API on `127.0.0.1:4747`.
-- **Scheduling:** every 30 seconds the daemon computes each job's latest cron slot from the wall clock and submits it once, keyed `<job>@<slot>`. Pi Durable's `requestId` makes the submission exactly-once, so a crash or restart never runs a slot twice. Slots missed while the Mac slept or the daemon was down collapse into the latest one. A new job waits for its first slot.
+- **Scheduling:** every 30 seconds the daemon computes each job's latest cron slot from the wall clock and submits it once, keyed `<job>@<slot>`. Pi Durable's `requestId` makes the submission exactly-once, so a crash or restart never runs a slot twice. Slots missed while the Mac slept or the daemon was down collapse into the latest one. A new job waits for its first slot. A job never runs twice at once: a slot that comes due during a run waits for it, and a manual run during one gets HTTP 409.
+- **Memory:** before each run the daemon resets the job's conversation with a handoff note holding the previous run's final summary, so context stays one run long. Pi Durable keeps the older entries in storage. The reset is keyed like the run, so a retry after a crash never resets again. Job instructions ask every run to end with a summary that records the state the next run compares against.
 - **Crash recovery:** every model turn and tool call is checkpointed. A daemon killed mid-run continues that run on restart.
 - **Tools in job runs:** `web_search` (Exa, Brave, Claude, Codex; shared with [`pi-web`](../pi-web/)), `web_fetch`, and `notify` (desktop notification plus inbox item), or the subset a job lists in `tools`. A job with a `command` also gets `job_command`, which runs that command and returns its exit status and output.
 - **Pi extension** (`index.ts`): `/jobs` overlay, `jobs_list` / `jobs_run` / `jobs_results` tools, and a footer status when the inbox has new items.

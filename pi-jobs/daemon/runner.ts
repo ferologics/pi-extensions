@@ -8,6 +8,7 @@ import {
     defineDoc,
     type Harness,
     type JsonObject,
+    ResetEntry,
     type SubmissionId,
     type ToolRegistration,
 } from "@earendil-works/pi-durable";
@@ -45,9 +46,9 @@ const State = defineDoc<JsonObject>({
 function instructions(job: JobDefinition): string {
     return [
         `You are "${job.name}", a scheduled job run by pi-jobs with no human watching.`,
-        "Each user message starts one run. Earlier runs are above in this conversation; compare against them to tell what is new.",
+        "Each user message starts one run. Every run after the first starts from a handoff note holding the previous run's summary; it is all you know about earlier runs, so compare against it to tell what is new.",
         "Call the notify tool only when the task below says the finding needs the user's attention. Never notify about nothing new.",
-        "End every run with a short plain-text summary of what you checked and what you found.",
+        "End every run with a plain-text summary the next run can compare against: what you checked, what you found, and the current state of everything you watch (for example the latest version seen, or the entries currently listed).",
         ...(job.command
             ? [
                   `Start every run by calling ${COMMAND_TOOL}; it runs \`${job.command}\` and its output is what the run is about.`,
@@ -56,6 +57,15 @@ function instructions(job: JobDefinition): string {
         "",
         "Task:",
         job.prompt,
+    ].join("\n");
+}
+
+function handoffNote(previous: RunRecord): string {
+    const when = previous.finishedAt ?? previous.startedAt;
+    return [
+        `Handoff from the previous run (${previous.trigger}, finished ${when}). Its summary:`,
+        "",
+        previous.answer ?? "",
     ].join("\n");
 }
 
@@ -72,6 +82,9 @@ export interface RunnerOptions {
     log(message: string): void;
     desktopNotify(title: string, message: string): Promise<void>;
 }
+
+/** A job already has a run in progress; a job never runs twice at once. */
+export class JobBusyError extends Error {}
 
 export class JobRunner {
     private readonly watching = new Set<string>();
@@ -150,6 +163,8 @@ export class JobRunner {
             try {
                 const state = await this.sync(job);
                 if (!job.enabled) continue;
+                // A slot that comes due during a run waits for it to finish.
+                if (state.runs.some((run) => run.status === "running")) continue;
                 const slot = latestSlot(job.schedule, now);
                 if (slot < new Date(state.firstSeen)) continue;
                 const slotIso = slot.toISOString();
@@ -166,8 +181,27 @@ export class JobRunner {
         const job = loadJobs(this.options.jobsDir).jobs.find((candidate) => candidate.name === name);
         if (!job) throw new Error(`unknown job "${name}"`);
         const state = await this.sync(job);
+        if (state.runs.some((run) => run.status === "running"))
+            throw new JobBusyError(`job "${name}" is already running`);
         const requestId = trigger === "schedule" ? `${name}@${slot}` : `${name}@manual-${randomUUID()}`;
         const conversation = await this.conversation(state.conversationId);
+        const previous = state.runs.findLast((run) => run.status === "done" && run.answer);
+        if (previous) {
+            // Each run starts a new context from the previous run's summary; durable keeps the older entries in
+            // storage. The reset is a write keyed like the run, so retrying after a crash never resets again.
+            await conversation.submit(
+                {
+                    type: "write",
+                    requestId: `${requestId}#reset`,
+                    entry: {
+                        kind: ResetEntry.kind,
+                        head: "self",
+                        model: [{ role: "user", content: handoffNote(previous), timestamp: Date.now() }],
+                    },
+                },
+                context,
+            );
+        }
         const label = trigger === "schedule" ? `Scheduled run for slot ${slot}` : "Manual run";
         const submission = await conversation.submit(
             { type: "input", content: `${label}. Current time: ${new Date().toISOString()}.`, requestId },

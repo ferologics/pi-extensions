@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { JobRunner } from "./runner.js";
+import { JobBusyError, type JobRunner } from "./runner.js";
 
 function send(res: ServerResponse, status: number, body: unknown): void {
     res.writeHead(status, { "content-type": "application/json" });
@@ -58,7 +58,10 @@ export function startServer(runner: JobRunner, host: string, port: number, log: 
         route(runner, req, res).catch((error) => {
             const message = error instanceof Error ? error.message : String(error);
             log(`${req.method} ${req.url}: ${message}`);
-            send(res, message.startsWith("unknown job") ? 404 : 500, { error: message });
+            let status = 500;
+            if (error instanceof JobBusyError) status = 409;
+            else if (message.startsWith("unknown job")) status = 404;
+            send(res, status, { error: message });
         });
     });
     server.listen(port, host, () => log(`listening on http://${host}:${port}`));
