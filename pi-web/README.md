@@ -29,6 +29,23 @@ Output over Pi's tool limits (2000 lines or 50KB) is truncated, and the full tex
 
 Answers from `claude`, `codex`, and `google` are labeled as another model's summary. Their token usage is reported on the tool result, so session totals include it.
 
+## Pi Durable
+
+`@ferologics/pi-web/durable` exposes the same two tools for [Pi Durable](https://earendil.com/posts/pi-durable/) harnesses, which run outside Pi and cannot load Pi extensions:
+
+```ts
+import { createWebTools } from "@ferologics/pi-web/durable";
+
+registry.install(
+    createWebTools({
+        secret: async (name) => process.env[name], // EXA_API_KEY, BRAVE_API_KEY
+        credential: async (provider) => (await models.getAuth(provider))?.auth.apiKey, // "anthropic", "openai-codex"
+    }),
+);
+```
+
+It installs a durable extension named `pi-web` with `web_search` (`exa`, `brave`, `claude`, `codex`; `google` needs pi-antigravity inside Pi's process) and `web_fetch`. Both are replay-safe, so a harness restarted mid-call runs them again. The host decides where keys come from. pi-web only imports types from `@earendil-works/pi-durable` (an optional peer dependency), so the Pi extension does not need it.
+
 ## Install
 
 From npm (standalone package):
