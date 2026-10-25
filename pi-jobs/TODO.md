@@ -4,7 +4,6 @@
 
 - [ ] Run the first real jobs for a week and tune the instructions/notify rules from what they do.
 - [ ] Per-run cost guard (max turns or tokens per run) and per-job cost in `/jobs`.
-- [ ] Inbox like Codex's Scheduled view: runs that notified or failed show as unread; quiet runs stay in the job's history.
 
 ## Standalone repo
 

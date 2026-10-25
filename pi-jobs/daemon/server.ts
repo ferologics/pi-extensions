@@ -41,12 +41,12 @@ async function route(runner: JobRunner, req: IncomingMessage, res: ServerRespons
         const transcript = await runner.transcript(decodeURIComponent(name), decodeURIComponent(parts[4]));
         return transcript ? send(res, 200, transcript) : send(res, 404, { error: `unknown run "${parts[4]}"` });
     }
+    if (req.method === "POST" && resource === "jobs" && name && action === "runs" && parts[4] && parts[5] === "read") {
+        const marked = await runner.markRead(decodeURIComponent(name), decodeURIComponent(parts[4]));
+        return marked ? send(res, 200, { read: true }) : send(res, 404, { error: `unknown run "${parts[4]}"` });
+    }
     if (req.method === "POST" && resource === "jobs" && name && action === "run") {
         return send(res, 202, await runner.submit(decodeURIComponent(name), "manual"));
-    }
-    if (req.method === "GET" && resource === "inbox") return send(res, 200, await runner.inbox());
-    if (req.method === "POST" && resource === "inbox" && name === "read") {
-        return send(res, 200, { marked: await runner.markInboxRead() });
     }
     send(res, 404, { error: "not found" });
 }

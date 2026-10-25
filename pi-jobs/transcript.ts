@@ -35,7 +35,11 @@ export function transcriptMarkdown(transcript: RunTranscript): string {
         `- Pi Durable: conversation ${durable.conversationId}, submission ${run.submissionId}, in ${durable.statePath}`,
         ...(run.error ? [`- Error: ${run.error}`] : []),
     ].join("\n");
+    const notifications = (run.notifications ?? []).map(
+        (item) => `- **${item.title}** (${item.at}): ${item.message}${item.url ? ` ${item.url}` : ""}`,
+    );
     const steps = transcript.items.length > 0 ? transcript.items.map(itemMarkdown) : ["_No transcript entries found._"];
     if (transcript.truncated) steps.push("_Transcript truncated: the run has more entries than the daemon returns._");
-    return [header, ...steps].join("\n\n");
+    const notified = notifications.length > 0 ? [`## Notifications\n\n${notifications.join("\n")}`] : [];
+    return [header, ...notified, ...steps].join("\n\n");
 }

@@ -5,6 +5,14 @@ export const DEFAULT_PORT = 4747;
 export type RunTrigger = "schedule" | "manual";
 export type RunStatus = "running" | "done" | "failed";
 
+/** What a run sent with the notify tool. */
+export interface RunNotification {
+    title: string;
+    message: string;
+    url?: string;
+    at: string;
+}
+
 export interface RunRecord {
     requestId: string;
     submissionId: number;
@@ -17,6 +25,10 @@ export interface RunRecord {
     /** The run's final answer, capped. */
     answer?: string;
     error?: string;
+    /** Every notify call of the run, in order. */
+    notifications?: RunNotification[];
+    /** Set when the run notified or failed, until its transcript is opened. Quiet runs are never unread. */
+    unread?: boolean;
 }
 
 /** One step of a run, flattened from its Pi Durable entries. Thinking is left out. */
@@ -48,6 +60,10 @@ export interface JobSummary {
     nextRun?: string;
     lastRun?: RunRecord;
     running: boolean;
+    /** Runs that notified or failed and were not opened yet. */
+    unread: number;
+    /** When the latest run started or finished. */
+    lastActivity?: string;
 }
 
 export interface JobError {
@@ -55,10 +71,18 @@ export interface JobError {
     error: string;
 }
 
+export interface UnreadRun {
+    job: string;
+    run: RunRecord;
+}
+
 export interface JobsResponse {
     jobsDir: string;
     /** Tools a job can list in `tools` (every installed tool except job_command, which comes from `command`). */
     tools: string[];
+    /** Runs to check, newest first. */
+    unread: UnreadRun[];
+    /** Jobs with unread runs first, then by latest activity. */
     jobs: JobSummary[];
     errors: JobError[];
 }
@@ -66,14 +90,4 @@ export interface JobsResponse {
 export interface JobDetail extends JobSummary {
     prompt: string;
     runs: RunRecord[];
-}
-
-export interface InboxItem {
-    id: string;
-    job: string;
-    title: string;
-    message: string;
-    url?: string;
-    at: string;
-    read: boolean;
 }

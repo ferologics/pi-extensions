@@ -15,7 +15,7 @@ const COMMAND_MAX_BUFFER = 32 * 1024 * 1024;
 export interface ToolHost {
     /** The `command` of the job that owns a conversation. */
     command(conversationId: number): Promise<string | undefined>;
-    /** Record an inbox item and show a desktop notification. */
+    /** Attach a notification to the job's running run, mark it unread, and show a desktop notification. */
     notify(conversationId: number, item: { title: string; message: string; url?: string }): Promise<void>;
 }
 
@@ -99,7 +99,7 @@ export function createJobTools(host: ToolHost): Extension {
     const notify = defineTool({
         name: "notify",
         description:
-            "Notify the user: shows a desktop notification and adds the item to the pi-jobs inbox. " +
+            "Notify the user: shows a desktop notification and marks this run as one to check in /jobs. " +
             "Call it only when the job's instructions say the finding needs the user's attention.",
         parameters: Type.Object({
             title: Type.String({ description: "Short headline." }),

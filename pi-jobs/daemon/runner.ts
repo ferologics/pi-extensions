@@ -17,7 +17,6 @@ import {
     UserEntry,
 } from "@earendil-works/pi-durable";
 import type {
-    InboxItem,
     JobDetail,
     JobsResponse,
     JobSummary,
@@ -25,13 +24,13 @@ import type {
     RunTranscript,
     RunTrigger,
     TranscriptItem,
+    UnreadRun,
 } from "../api.js";
 import { COMMAND_TOOL, type JobDefinition, latestSlot, loadJobs, nextSlot } from "./jobs.js";
 import { entryItems } from "./transcript.js";
 
 const context = BACKGROUND_CONTEXT;
 const MAX_RUNS = 30;
-const MAX_INBOX = 200;
 const MAX_ANSWER = 8000;
 const MAX_TRANSCRIPT_ENTRIES = 500;
 
@@ -47,14 +46,13 @@ type JobState = {
 
 type DaemonState = {
     jobs: Record<string, JobState>;
-    inbox: InboxItem[];
 };
 
 const State = defineDoc<JsonObject>({
     kind: "pi-jobs.state",
     version: 1,
     scope: "session",
-    initial: () => ({ jobs: {}, inbox: [] }),
+    initial: () => ({ jobs: {} }),
     checkpointWhen: () => true,
 });
 
@@ -114,7 +112,7 @@ export class JobRunner {
     }
 
     private async state(): Promise<DaemonState> {
-        return ((await this.harness.snapshot(State, context)) ?? { jobs: {}, inbox: [] }) as unknown as DaemonState;
+        return ((await this.harness.snapshot(State, context)) ?? { jobs: {} }) as unknown as DaemonState;
     }
 
     private update<T>(change: (state: DaemonState) => T): Promise<T> {
@@ -290,7 +288,7 @@ export class JobRunner {
             patch = { status: "done", answer: answerText(entry?.model?.[0] as AssistantMessage | undefined) };
         } else {
             const reason = settled.status === "unanswered" ? settled.reason : settled.status;
-            patch = { status: "failed", error: reason };
+            patch = { status: "failed", error: reason, unread: true };
             await this.options.desktopNotify(`pi-jobs: ${name} failed`, reason);
         }
         await this.update((state) => {
@@ -310,21 +308,35 @@ export class JobRunner {
         return this.loadJobs().jobs.find((job) => job.name === name)?.command;
     }
 
+    /** Attach a notification to the job's running run and mark the run unread. */
     async notify(conversationId: number, item: { title: string; message: string; url?: string }): Promise<void> {
-        const job = (await this.jobName(conversationId)) ?? "unknown";
+        const job = await this.jobName(conversationId);
+        if (!job) throw new Error(`no job owns conversation ${conversationId}`);
         await this.update((current) => {
-            current.inbox.push({
-                id: randomUUID(),
-                job,
-                title: item.title,
-                message: item.message,
-                ...(item.url ? { url: item.url } : {}),
-                at: new Date().toISOString(),
-                read: false,
-            });
-            if (current.inbox.length > MAX_INBOX) current.inbox.splice(0, current.inbox.length - MAX_INBOX);
+            const run = current.jobs[job].runs.find((candidate) => candidate.status === "running");
+            if (!run) throw new Error(`job "${job}" has no running run to notify from`);
+            run.notifications = [
+                ...(run.notifications ?? []),
+                {
+                    title: item.title,
+                    message: item.message,
+                    ...(item.url ? { url: item.url } : {}),
+                    at: new Date().toISOString(),
+                },
+            ];
+            run.unread = true;
         });
         await this.options.desktopNotify(`${job}: ${item.title}`, item.message);
+    }
+
+    /** Mark a run read; false when the job or run is unknown. */
+    async markRead(name: string, requestId: string): Promise<boolean> {
+        return this.update((state) => {
+            const run = state.jobs[name]?.runs.find((candidate) => candidate.requestId === requestId);
+            if (!run) return false;
+            delete run.unread;
+            return true;
+        });
     }
 
     private summary(job: JobDefinition, state: JobState | undefined, now: Date): JobSummary {
@@ -338,8 +350,9 @@ export class JobRunner {
             tools: job.tools,
             ...(job.command ? { command: job.command } : {}),
             ...(job.enabled ? { nextRun: nextSlot(job.schedule, now).toISOString() } : {}),
-            ...(lastRun ? { lastRun } : {}),
+            ...(lastRun ? { lastRun, lastActivity: lastRun.finishedAt ?? lastRun.startedAt } : {}),
             running: state?.runs.some((run) => run.status === "running") ?? false,
+            unread: state?.runs.filter((run) => run.unread).length ?? 0,
         };
     }
 
@@ -347,10 +360,24 @@ export class JobRunner {
         const { jobs, errors } = this.loadJobs();
         const state = await this.state();
         const now = new Date();
+        const summaries = jobs.map((job) => this.summary(job, state.jobs[job.name], now));
+        // Like a chat list: jobs with something to check first, then the most recently active.
+        summaries.sort(
+            (a, b) =>
+                Number(b.unread > 0) - Number(a.unread > 0) ||
+                (b.lastActivity ?? "").localeCompare(a.lastActivity ?? "") ||
+                a.name.localeCompare(b.name),
+        );
+        const unread: UnreadRun[] = summaries
+            .flatMap(({ name }) =>
+                (state.jobs[name]?.runs ?? []).filter((run) => run.unread).map((run) => ({ job: name, run })),
+            )
+            .sort((a, b) => (b.run.finishedAt ?? b.run.startedAt).localeCompare(a.run.finishedAt ?? a.run.startedAt));
         return {
             jobsDir: this.options.jobsDir,
             tools: this.installedTools().filter((tool) => tool !== COMMAND_TOOL),
-            jobs: jobs.map((job) => this.summary(job, state.jobs[job.name], now)),
+            unread,
+            jobs: summaries,
             errors,
         };
     }
@@ -404,22 +431,5 @@ export class JobRunner {
             items.push(...entryItems(entry));
         }
         return { job: name, run, durable, items, truncated: page.next !== undefined };
-    }
-
-    async inbox(): Promise<InboxItem[]> {
-        return [...(await this.state()).inbox].reverse();
-    }
-
-    async markInboxRead(): Promise<number> {
-        return this.update((state) => {
-            let count = 0;
-            for (const item of state.inbox) {
-                if (!item.read) {
-                    item.read = true;
-                    count++;
-                }
-            }
-            return count;
-        });
     }
 }

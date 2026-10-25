@@ -14,15 +14,16 @@ const GUIDELINES = [
 
 function formatRun(run: RunRecord): string {
     const when = run.finishedAt ?? run.startedAt;
-    const header = `${run.status} · ${run.trigger}${run.slot ? ` slot ${run.slot}` : ""} · ${when} (${ago(when)})`;
+    const header = `${run.status}${run.unread ? " (unread)" : ""} · ${run.trigger}${run.slot ? ` slot ${run.slot}` : ""} · ${when} (${ago(when)})`;
+    const notified = (run.notifications ?? []).map((item) => `notified: ${item.title}: ${item.message}`);
     const body = run.error ? `error: ${run.error}` : (run.answer ?? "");
-    return body ? `${header}\n${body}` : header;
+    return [header, ...notified, ...(body ? [body] : [])].join("\n");
 }
 
 async function refreshStatus(ctx: ExtensionContext): Promise<void> {
     try {
-        const unread = (await client.inbox()).filter((item) => !item.read).length;
-        ctx.ui.setStatus(STATUS_KEY, unread > 0 ? `jobs: ${unread} new` : undefined);
+        const unread = (await client.jobs()).unread.length;
+        ctx.ui.setStatus(STATUS_KEY, unread > 0 ? `jobs: ${unread} to check` : undefined);
     } catch {
         ctx.ui.setStatus(STATUS_KEY, undefined);
     }
@@ -37,11 +38,16 @@ export default function piJobs(pi: ExtensionAPI): void {
         promptGuidelines: GUIDELINES,
         parameters: Type.Object({}),
         async execute() {
-            const { jobsDir, tools, jobs, errors } = await client.jobs();
-            const lines = [`Jobs dir: ${jobsDir}`, `Tools jobs can use: ${tools.join(", ")}`];
+            const { jobsDir, tools, unread, jobs, errors } = await client.jobs();
+            const lines = [
+                `Jobs dir: ${jobsDir}`,
+                `Tools jobs can use: ${tools.join(", ")}`,
+                `Runs to check (notified or failed, not opened in /jobs yet): ${unread.length}`,
+            ];
             for (const job of jobs) {
                 lines.push(
                     `- ${job.name}${job.enabled ? "" : " (disabled)"}: "${job.schedule}", ${job.model}, last ${lastRunLabel(job)}` +
+                        `${job.unread > 0 ? `, ${job.unread} to check` : ""}` +
                         `${job.nextRun ? `, next ${job.nextRun} (${ago(job.nextRun)})` : ""}`,
                 );
             }
@@ -95,7 +101,7 @@ export default function piJobs(pi: ExtensionAPI): void {
     });
 
     pi.registerCommand("jobs", {
-        description: "Show pi-jobs jobs, their results, and the job inbox",
+        description: "Show pi-jobs runs to check, jobs, and run transcripts",
         handler: async (_args, ctx) => {
             if (ctx.mode !== "tui") {
                 ctx.ui.notify("/jobs needs interactive mode; use the jobs_list tool instead", "error");
@@ -105,11 +111,6 @@ export default function piJobs(pi: ExtensionAPI): void {
                 overlay: true,
                 overlayOptions: { width: "100%", maxHeight: "100%" },
             });
-            try {
-                await client.markRead();
-            } catch {
-                // Daemon down: the overlay already showed why.
-            }
             await refreshStatus(ctx);
         },
     });

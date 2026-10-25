@@ -1,6 +1,5 @@
 import {
     DEFAULT_PORT,
-    type InboxItem,
     type JobDetail,
     type JobSummary,
     type JobsResponse,
@@ -28,8 +27,11 @@ export const client = {
     run: (name: string) => request<RunRecord>("POST", `/api/jobs/${encodeURIComponent(name)}/run`),
     transcript: (name: string, requestId: string) =>
         request<RunTranscript>("GET", `/api/jobs/${encodeURIComponent(name)}/runs/${encodeURIComponent(requestId)}`),
-    inbox: () => request<InboxItem[]>("GET", "/api/inbox"),
-    markRead: () => request<{ marked: number }>("POST", "/api/inbox/read"),
+    markRead: (name: string, requestId: string) =>
+        request<{ read: boolean }>(
+            "POST",
+            `/api/jobs/${encodeURIComponent(name)}/runs/${encodeURIComponent(requestId)}/read`,
+        ),
 };
 
 export function ago(iso: string | undefined, now = Date.now()): string {
