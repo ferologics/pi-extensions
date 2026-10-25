@@ -1,0 +1,19 @@
+{
+    "name": "pi-jobs-daemon",
+    "private": true,
+    "type": "module",
+    "description": "pi-jobs daemon: scheduled Pi Durable jobs with an HTTP API",
+    "scripts": {
+        "start": "node --import ./resolve-ts.mjs main.ts"
+    },
+    "dependencies": {
+        "@earendil-works/chord": "1.4.0",
+        "@earendil-works/pi-ai": "1.4.0",
+        "@earendil-works/pi-coding-agent": "1.4.0",
+        "@earendil-works/pi-durable": "1.4.0",
+        "cron-parser": "5.10.2"
+    },
+    "devDependencies": {
+        "@types/node": "^26.6.5"
+    }
+}

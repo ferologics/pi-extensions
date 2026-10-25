@@ -23,5 +23,6 @@
       "typebox": ["/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/typebox"]
     }
   },
-  "include": ["**/*.ts"]
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "pi-jobs/daemon"]
 }

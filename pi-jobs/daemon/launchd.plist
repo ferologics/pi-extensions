@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template rendered by `just install`; @NODE@, @DAEMON@ and @LOG@ are filled in. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.github.ferologics.pi-jobs</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>@NODE@</string>
+        <string>--import</string>
+        <string>./resolve-ts.mjs</string>
+        <string>main.ts</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>@DAEMON@</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>@LOG@</string>
+    <key>StandardErrorPath</key>
+    <string>@LOG@</string>
+</dict>
+</plist>

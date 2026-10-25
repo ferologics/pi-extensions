@@ -6,6 +6,7 @@ Use this file as an index (and for truly shared extension-platform chores).
 
 - Deep review: `deep-review/TODO.md`
 - Pi Ghostty Hunk: `pi-ghostty-hunk/TODO.md`
+- Pi jobs: `pi-jobs/TODO.md`
 - Pi system theme: `pi-system-theme/TODO.md`
 - Plan mode: `plan-mode/TODO.md`
 - Pi verbosity control: `pi-verbosity-control/TODO.md`

@@ -5,6 +5,7 @@ check: fmt lint compile test
 
 compile:
     tsc --noEmit
+    tsc -p pi-jobs/daemon
 
 fmt:
     npx @biomejs/biome format --write .
@@ -22,6 +23,7 @@ remove-hooks:
 
 setup: && setup-hooks
     npm install
+    npm --prefix pi-jobs/daemon ci
 
 setup-hooks:
     #!/usr/bin/env sh

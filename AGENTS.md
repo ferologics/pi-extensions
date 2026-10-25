@@ -36,6 +36,7 @@ Current extensions:
 - `deep-review`
 - `pi-ghostty-hunk`
 - `pi-ghostty-lazygit`
+- `pi-jobs`
 - `pi-notify`
 - `pi-quote-copy`
 - `pi-slack-user`
@@ -43,6 +44,10 @@ Current extensions:
 - `pi-web`
 - `plan-mode`
 - `pi-verbosity-control`
+
+## pi-jobs daemon
+
+`pi-jobs/` is both an extension (`index.ts`, a client) and a daemon (`pi-jobs/daemon/`). The daemon is a separate Node program with its own `package.json`, exact-pinned Pi Durable dependencies, and its own `tsconfig.json`; the root `tsconfig.json` excludes it and `just compile` type-checks it with `tsc -p pi-jobs/daemon`. It runs on Node's built-in type stripping (no build step); `daemon/resolve-ts.mjs` maps relative `.js` imports to `.ts` so it can import `pi-web`'s search/fetch modules by relative path. Type stripping does not support enums or constructor parameter properties, so daemon code avoids them. See `pi-jobs/README.md` for install and runtime details.
 
 ## Type Checking
 
@@ -68,6 +73,7 @@ Install Pi before running checks. `.npmrc` disables automatic peer installation 
 - Extension-specific backlog lives next to each extension:
   - `deep-review/TODO.md`
   - `pi-ghostty-hunk/TODO.md`
+  - `pi-jobs/TODO.md`
   - `pi-system-theme/TODO.md`
   - `plan-mode/TODO.md`
   - `pi-verbosity-control/TODO.md`
