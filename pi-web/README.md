@@ -29,6 +29,28 @@ Output over Pi's tool limits (2000 lines or 50KB) is truncated, and the full tex
 
 Answers from `claude`, `codex`, and `google` are labeled as another model's summary. Their token usage is reported on the tool result, so session totals include it.
 
+## Install
+
+From npm (standalone package):
+
+```bash
+pi install npm:@ferologics/pi-web
+```
+
+From git:
+
+```bash
+pi install git:github.com/ferologics/pi-web
+```
+
+Or use the bundled package:
+
+```bash
+pi install npm:@ferologics/pi-extensions
+# or
+pi install npm:pi-shit
+```
+
 ## Setup
 
 Expose the API keys to Pi:

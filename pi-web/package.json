@@ -1,0 +1,46 @@
+{
+    "name": "@ferologics/pi-web",
+    "version": "0.1.0",
+    "description": "Web search (Exa, Brave, Claude, Codex, Google) and page fetching tools for Pi",
+    "type": "module",
+    "keywords": [
+        "pi-package",
+        "pi",
+        "pi-coding-agent",
+        "web-search",
+        "web-fetch"
+    ],
+    "author": "ferologics",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ferologics/pi-web.git"
+    },
+    "homepage": "https://github.com/ferologics/pi-web#readme",
+    "bugs": {
+        "url": "https://github.com/ferologics/pi-web/issues"
+    },
+    "pi": {
+        "extensions": [
+            "index.ts"
+        ]
+    },
+    "dependencies": {
+        "@mozilla/readability": "^0.6.0",
+        "jsdom": "^29.1.1",
+        "turndown": "^7.2.4",
+        "turndown-plugin-gfm": "^1.0.2"
+    },
+    "peerDependencies": {
+        "@earendil-works/pi-ai": "*",
+        "@earendil-works/pi-coding-agent": "*"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "piRelease": {
+        "repo": "ferologics/pi-web",
+        "branch": "main",
+        "subtreePublishRecipe": "publish-pi-web"
+    }
+}
