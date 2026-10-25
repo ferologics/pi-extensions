@@ -1,7 +1,7 @@
 {
     "name": "@ferologics/pi-extensions",
     "version": "0.8.0",
-    "description": "Custom Pi extensions bundle (deep-review, pi-ghostty-hunk, pi-ghostty-lazygit, pi-notify, pi-slack-user, pi-system-theme, pi-web, plan-mode, pi-verbosity-control)",
+    "description": "Custom Pi extensions bundle (deep-review, pi-ghostty-hunk, pi-ghostty-lazygit, pi-notify, pi-quote-copy, pi-slack-user, pi-system-theme, pi-web, plan-mode, pi-verbosity-control)",
     "type": "module",
     "keywords": [
         "pi-package",
@@ -32,6 +32,7 @@
             "pi-ghostty-hunk/index.ts",
             "pi-ghostty-lazygit/index.ts",
             "pi-notify/index.ts",
+            "pi-quote-copy/index.ts",
             "pi-slack-user/index.ts",
             "pi-system-theme/index.ts",
             "pi-verbosity-control/index.ts",

@@ -37,6 +37,7 @@ Current extensions:
 - `pi-ghostty-hunk`
 - `pi-ghostty-lazygit`
 - `pi-notify`
+- `pi-quote-copy`
 - `pi-slack-user`
 - `pi-system-theme`
 - `pi-web`

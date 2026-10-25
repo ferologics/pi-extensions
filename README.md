@@ -10,6 +10,7 @@ Custom extensions for [pi-coding-agent](https://www.npmjs.com/package/@earendil-
 | [`pi-ghostty-hunk`](pi-ghostty-hunk/)           | Open Hunk in a new Ghostty window at the current repo root                         |
 | [`pi-ghostty-lazygit`](pi-ghostty-lazygit/)     | Open lazygit in a new Ghostty window at the current repo root                      |
 | [`pi-notify`](pi-notify/)                       | Desktop notifications when the agent finishes                                      |
+| [`pi-quote-copy`](pi-quote-copy/)               | Copy a quoted or fenced block from the last response as raw Markdown               |
 | [`pi-slack-user`](pi-slack-user/)               | Read Slack permalinks and post confirmed replies with a user OAuth token           |
 | [`pi-system-theme`](pi-system-theme/)           | Sync Pi theme with macOS dark/light mode and configurable theme names              |
 | [`pi-web`](pi-web/)                             | Web search (Exa, Brave, Claude, Codex, Google) and page fetching                   |
@@ -39,6 +40,7 @@ ln -s ~/dev/pi-extensions/deep-review ~/.pi/agent/extensions/
 ln -s ~/dev/pi-extensions/pi-ghostty-hunk ~/.pi/agent/extensions/
 ln -s ~/dev/pi-extensions/pi-ghostty-lazygit ~/.pi/agent/extensions/
 ln -s ~/dev/pi-extensions/pi-notify ~/.pi/agent/extensions/
+ln -s ~/dev/pi-extensions/pi-quote-copy ~/.pi/agent/extensions/
 ln -s ~/dev/pi-extensions/pi-system-theme ~/.pi/agent/extensions/
 ln -s ~/dev/pi-extensions/plan-mode ~/.pi/agent/extensions/
 ln -s ~/dev/pi-extensions/pi-verbosity-control ~/.pi/agent/extensions/
