@@ -19,6 +19,22 @@ export interface RunRecord {
     error?: string;
 }
 
+/** One step of a run, flattened from its Pi Durable entries. Thinking is left out. */
+export type TranscriptItem =
+    | { type: "handoff" | "user" | "assistant"; text: string }
+    | { type: "tool_call"; tool: string; text: string }
+    | { type: "tool_result"; tool: string; text: string; isError: boolean };
+
+export interface RunTranscript {
+    job: string;
+    run: RunRecord;
+    /** Where the run lives in Pi Durable, for digging deeper than this transcript. */
+    durable: { statePath: string; conversationId: number };
+    items: TranscriptItem[];
+    /** True when the run had more entries than the transcript holds. */
+    truncated: boolean;
+}
+
 export interface JobSummary {
     name: string;
     schedule: string;

@@ -4,8 +4,6 @@
 
 - [ ] Run the first real jobs for a week and tune the instructions/notify rules from what they do.
 - [ ] Per-run cost guard (max turns or tokens per run) and per-job cost in `/jobs`.
-- [ ] Run view: fullscreen transcript of a run in `/jobs` (tool calls, command output, answer), served by the daemon from the durable entries.
-- [ ] Open in Pi: from a run in `/jobs`, open a new Ghostty window with a fresh Pi session in the job's directory, seeded with the run's transcript as an attached file (same AppleScript as `pi-ghostty-hunk`).
 - [ ] Inbox like Codex's Scheduled view: runs that notified or failed show as unread; quiet runs stay in the job's history.
 
 ## Standalone repo

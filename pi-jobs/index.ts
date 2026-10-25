@@ -103,7 +103,7 @@ export default function piJobs(pi: ExtensionAPI): void {
             }
             await ctx.ui.custom<void>((tui, theme, _keybindings, done) => new JobsOverlay(tui, theme, () => done()), {
                 overlay: true,
-                overlayOptions: { width: "80%", minWidth: 60, maxHeight: "85%" },
+                overlayOptions: { width: "100%", maxHeight: "100%" },
             });
             try {
                 await client.markRead();

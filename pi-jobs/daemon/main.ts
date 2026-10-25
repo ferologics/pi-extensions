@@ -41,6 +41,7 @@ async function desktopNotify(title: string, message: string): Promise<void> {
 
 log(`starting pid ${process.pid}`);
 mkdirSync(stateDir, { recursive: true });
+const statePath = join(stateDir, "jobs.sqlite");
 mkdirSync(jobsDir, { recursive: true });
 
 const models = await ModelRuntime.create({ authPath });
@@ -56,12 +57,8 @@ registry.install(
     createWebTools({ secret, credential: async (provider) => (await models.getAuth(provider))?.auth.apiKey }),
 );
 
-const harness = await Harness.open(
-    await openNodeSqliteStorage(join(stateDir, "jobs.sqlite")),
-    { models, registry },
-    context,
-);
-runner = new JobRunner(harness, { jobsDir, registry, log, desktopNotify });
+const harness = await Harness.open(await openNodeSqliteStorage(statePath), { models, registry }, context);
+runner = new JobRunner(harness, { jobsDir, statePath, registry, log, desktopNotify });
 harness.resume();
 await runner.recover();
 

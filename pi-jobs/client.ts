@@ -5,6 +5,7 @@ import {
     type JobSummary,
     type JobsResponse,
     type RunRecord,
+    type RunTranscript,
 } from "./api.js";
 
 export const DAEMON_URL = (process.env.PI_JOBS_URL ?? `http://127.0.0.1:${DEFAULT_PORT}`).replace(/\/$/, "");
@@ -25,6 +26,8 @@ export const client = {
     jobs: () => request<JobsResponse>("GET", "/api/jobs"),
     job: (name: string) => request<JobDetail>("GET", `/api/jobs/${encodeURIComponent(name)}`),
     run: (name: string) => request<RunRecord>("POST", `/api/jobs/${encodeURIComponent(name)}/run`),
+    transcript: (name: string, requestId: string) =>
+        request<RunTranscript>("GET", `/api/jobs/${encodeURIComponent(name)}/runs/${encodeURIComponent(requestId)}`),
     inbox: () => request<InboxItem[]>("GET", "/api/inbox"),
     markRead: () => request<{ marked: number }>("POST", "/api/inbox/read"),
 };

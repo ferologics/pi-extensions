@@ -5,6 +5,8 @@ import {
     AssistantEntry,
     type Conversation,
     type ConversationId,
+    type EntryId,
+    type EntryRecord,
     defineDoc,
     type Harness,
     type JsonObject,
@@ -12,14 +14,26 @@ import {
     ResetEntry,
     type SubmissionId,
     type ToolRegistration,
+    UserEntry,
 } from "@earendil-works/pi-durable";
-import type { InboxItem, JobDetail, JobsResponse, JobSummary, RunRecord, RunTrigger } from "../api.js";
+import type {
+    InboxItem,
+    JobDetail,
+    JobsResponse,
+    JobSummary,
+    RunRecord,
+    RunTranscript,
+    RunTrigger,
+    TranscriptItem,
+} from "../api.js";
 import { COMMAND_TOOL, type JobDefinition, latestSlot, loadJobs, nextSlot } from "./jobs.js";
+import { entryItems } from "./transcript.js";
 
 const context = BACKGROUND_CONTEXT;
 const MAX_RUNS = 30;
 const MAX_INBOX = 200;
 const MAX_ANSWER = 8000;
+const MAX_TRANSCRIPT_ENTRIES = 500;
 
 type JobState = {
     conversationId: number;
@@ -78,6 +92,8 @@ function answerText(message: AssistantMessage | undefined): string {
 
 export interface RunnerOptions {
     jobsDir: string;
+    /** The harness storage file, reported in transcripts. */
+    statePath: string;
     /** The harness registry; a job's agent enables the installed tools its definition lists. */
     registry: RegistryReader;
     log(message: string): void;
@@ -348,6 +364,46 @@ export class JobRunner {
             prompt: job.prompt,
             runs: [...(state?.runs ?? [])].reverse(),
         };
+    }
+
+    /**
+     * One run's steps, from its handoff note to its answer. A run's entries start at its input, right after the reset
+     * that carries the handoff, and end at its answer; a run without one ends where the next run's reset or input begins.
+     */
+    async transcript(name: string, requestId: string): Promise<RunTranscript | undefined> {
+        const jobState = (await this.state()).jobs[name];
+        const run = jobState?.runs.find((candidate) => candidate.requestId === requestId);
+        if (!jobState || !run) return undefined;
+        const durable = { statePath: this.options.statePath, conversationId: jobState.conversationId };
+        const submission = await this.harness.submission(run.submissionId as SubmissionId, context);
+        const record = submission ? await submission.status(context) : undefined;
+        if (record?.type !== "input" || record.entry === undefined) {
+            return { job: name, run, durable, items: [], truncated: false };
+        }
+        const conversation = await this.conversation(jobState.conversationId);
+        const items: TranscriptItem[] = [];
+        const before = await conversation.entries(
+            { maxEntryId: record.entry, order: "descending" },
+            2,
+            undefined,
+            context,
+        );
+        const previous: EntryRecord | undefined = before.items[1];
+        if (previous?.kind === ResetEntry.kind) items.push(...entryItems(previous));
+        const answer = record.status === "done" ? record.answer : undefined;
+        const page = await conversation.entries(
+            { minEntryId: record.entry, ...(answer ? { maxEntryId: answer as EntryId } : {}), order: "ascending" },
+            MAX_TRANSCRIPT_ENTRIES,
+            undefined,
+            context,
+        );
+        for (const entry of page.items) {
+            const nextRun =
+                entry.id !== record.entry && (entry.kind === ResetEntry.kind || entry.kind === UserEntry.kind);
+            if (nextRun) break;
+            items.push(...entryItems(entry));
+        }
+        return { job: name, run, durable, items, truncated: page.next !== undefined };
     }
 
     async inbox(): Promise<InboxItem[]> {

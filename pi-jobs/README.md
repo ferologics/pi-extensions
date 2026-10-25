@@ -12,7 +12,11 @@ Jobs run whether or not a Pi session is open. Each job keeps one conversation, a
 - **Memory:** before each run the daemon resets the job's conversation with a handoff note holding the previous run's final summary, so context stays one run long. Pi Durable keeps the older entries in storage. The reset is keyed like the run, so a retry after a crash never resets again. Job instructions ask every run to end with a summary that records the state the next run compares against.
 - **Crash recovery:** every model turn and tool call is checkpointed. A daemon killed mid-run continues that run on restart.
 - **Tools in job runs:** pi-jobs owns only `notify` (desktop notification plus inbox item) and `job_command`. `web_search` (Exa, Brave, Claude, Codex) and `web_fetch` come from [`@ferologics/pi-web/durable`](../pi-web/), installed in `daemon/main.ts`. A job gets exactly the tools it lists in `tools`, which is required, so a tool installed later never reaches a job that does not list it; a job with a `command` also gets `job_command`, which runs that command and returns its exit status and output.
-- **Pi extension** (`index.ts`): `/jobs` overlay, `jobs_list` / `jobs_run` / `jobs_results` tools, and a footer status when the inbox has new items.
+- **Pi extension** (`index.ts`): the `/jobs` screen, `jobs_list` / `jobs_run` / `jobs_results` tools, and a footer status when the inbox has new items.
+
+## `/jobs`
+
+A fullscreen view in three levels: the inbox and job list, then one job's definition and runs, then one run's full transcript (handoff note, run message, every tool call and result, and the answer). `r` runs the selected job now. `o` on a run opens it in Pi: the transcript is written to `$TMPDIR/pi-jobs/<job>-<run>.md` and a new Ghostty window starts `pi @<file> '...'` in the home directory, so you act on a finding in a fresh session with all your tools. The file header names the run's Pi Durable conversation and storage file for anything the transcript leaves out. Outside Ghostty on macOS, `o` shows the command to run instead.
 
 ## Job definition
 
@@ -67,14 +71,15 @@ just uninstall  # stop and remove the agent (keeps jobs and state)
 
 ## HTTP API
 
-| Method | Path                  | Returns                                                            |
-| ------ | --------------------- | ------------------------------------------------------------------ |
-| GET    | `/api/health`         | `{ ok, pid }`                                                      |
-| GET    | `/api/jobs`           | Jobs with last and next run, the tools jobs can use, invalid files |
-| GET    | `/api/jobs/:name`     | One job with its prompt and recent runs                            |
-| POST   | `/api/jobs/:name/run` | Starts a manual run                                                |
-| GET    | `/api/inbox`          | Notifications, newest first                                        |
-| POST   | `/api/inbox/read`     | Marks every inbox item read                                        |
+| Method | Path                              | Returns                                                            |
+| ------ | --------------------------------- | ------------------------------------------------------------------ |
+| GET    | `/api/health`                     | `{ ok, pid }`                                                      |
+| GET    | `/api/jobs`                       | Jobs with last and next run, the tools jobs can use, invalid files |
+| GET    | `/api/jobs/:name`                 | One job with its prompt and recent runs                            |
+| GET    | `/api/jobs/:name/runs/:requestId` | One run's transcript and its Pi Durable location                   |
+| POST   | `/api/jobs/:name/run`             | Starts a manual run                                                |
+| GET    | `/api/inbox`                      | Notifications, newest first                                        |
+| POST   | `/api/inbox/read`                 | Marks every inbox item read                                        |
 
 The API has no authentication, so it refuses browser traffic: any request with an `Origin` header gets a 403, and so does any request whose `Host` is not the address the daemon listens on (`127.0.0.1:4747` or `localhost:4747` by default). That stops web pages from triggering runs or reading results, including through DNS rebinding. Command-line clients and Node's `fetch` send no `Origin`, so they work unchanged.
 

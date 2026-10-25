@@ -37,6 +37,10 @@ async function route(runner: JobRunner, req: IncomingMessage, res: ServerRespons
         const detail = await runner.detail(decodeURIComponent(name));
         return detail ? send(res, 200, detail) : send(res, 404, { error: `unknown job "${name}"` });
     }
+    if (req.method === "GET" && resource === "jobs" && name && action === "runs" && parts[4]) {
+        const transcript = await runner.transcript(decodeURIComponent(name), decodeURIComponent(parts[4]));
+        return transcript ? send(res, 200, transcript) : send(res, 404, { error: `unknown run "${parts[4]}"` });
+    }
     if (req.method === "POST" && resource === "jobs" && name && action === "run") {
         return send(res, 202, await runner.submit(decodeURIComponent(name), "manual"));
     }
