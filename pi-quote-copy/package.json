@@ -1,0 +1,36 @@
+{
+    "name": "pi-quote-copy",
+    "version": "0.1.0",
+    "description": "Copy a quoted or fenced block from Pi's last response as raw Markdown",
+    "keywords": [
+        "pi-package",
+        "pi",
+        "pi-coding-agent",
+        "clipboard",
+        "markdown"
+    ],
+    "author": "ferologics",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ferologics/pi-quote-copy.git"
+    },
+    "homepage": "https://github.com/ferologics/pi-quote-copy#readme",
+    "bugs": {
+        "url": "https://github.com/ferologics/pi-quote-copy/issues"
+    },
+    "pi": {
+        "extensions": [
+            "index.ts"
+        ]
+    },
+    "peerDependencies": {
+        "@earendil-works/pi-coding-agent": "*",
+        "@earendil-works/pi-tui": "*"
+    },
+    "piRelease": {
+        "repo": "ferologics/pi-quote-copy",
+        "branch": "main",
+        "subtreePublishRecipe": "publish-pi-quote-copy"
+    }
+}
