@@ -17,6 +17,7 @@ Custom extensions for [pi-coding-agent](https://www.npmjs.com/package/@earendil-
 | [`pi-web`](pi-web/)                             | Web search (Exa, Brave, Claude, Codex, Google) and page fetching                   |
 | [`plan-mode`](plan-mode/)                       | Read-only plan mode with progress tracking and questionnaire support               |
 | [`pi-verbosity-control`](pi-verbosity-control/) | Per-model OpenAI verbosity overrides with a keyboard toggle                        |
+| [`session-recap`](session-recap/)               | Away recap of the session's task and next step, saved and shown again on reopen    |
 
 Each extension folder contains full usage details and examples.
 
