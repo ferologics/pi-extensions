@@ -11,6 +11,7 @@ Use this file as an index (and for truly shared extension-platform chores).
 - Plan mode: `plan-mode/TODO.md`
 - Pi verbosity control: `pi-verbosity-control/TODO.md`
 - Prompt stash: `prompt-stash/TODO.md`
+- The Dude and Duck: `the-dude/TODO.md`
 
 ## Ownership rules
 
