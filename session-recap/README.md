@@ -6,7 +6,7 @@ Each recap is saved in the session file. Reopening the session shows the saved r
 
 Built for multi-Pi workflows where several agent sessions run in parallel tabs. The recap orients rather than reports: it states the high-level task first (what you're building or debugging), then the concrete next step. The last assistant message is already on screen; what you lose after a context switch is the task thread.
 
-Forked from [tmustier/pi-extensions](https://github.com/tmustier/pi-extensions/tree/main/session-recap) at `a360c9c` (session-recap 0.5.2), MIT licensed. This fork adds saved recaps and the recap on CLI reopen.
+Forked from [tmustier/pi-extensions](https://github.com/tmustier/pi-extensions/tree/main/session-recap) at `a360c9c` (session-recap 0.5.2), MIT licensed. This fork adds saved recaps, the recap on CLI reopen, and Codex recaps for Anthropic sessions.
 
 ## How it triggers
 
@@ -46,10 +46,10 @@ If focus events cause any weirdness in your terminal, run with `--recap-disable-
 
 ## Model
 
-The recap reuses the active provider's authentication and chooses a cheaper model when available:
+The recap chooses a cheap model and reuses the login of the provider it picks:
 
 1. `--recap-model` when set.
-2. `anthropic/claude-haiku-4-5` for Anthropic sessions.
+2. `openai-codex/gpt-5.6-luna` for Anthropic sessions, and no automatic recap without a Codex login. Anthropic bills a subscription request without Claude Code's billing header to usage credits and rejects it when there are none. pi-cc-patch adds that header only to Pi's own requests, never to an extension's direct model call.
 3. GPT-5.6 Luna when the active model is GPT and its provider offers Luna.
 4. The currently active model otherwise.
 

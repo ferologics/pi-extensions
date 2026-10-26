@@ -44,7 +44,10 @@ const CONVERSATION_ENTRY_TYPES = new Set<SessionEntry["type"]>([
 
 const DEFAULT_AWAY_SECONDS = 90;
 const DEFAULT_IDLE_SECONDS = 120;
-const ANTHROPIC_RECAP_MODEL = "claude-haiku-4-5";
+// Anthropic bills a subscription request without Claude Code's billing header to usage credits, and rejects it
+// when there are none. pi-cc-patch adds that header only to Pi's own requests, never to an extension's direct
+// model call, so Anthropic sessions draft recaps with Codex instead.
+const ANTHROPIC_SESSION_RECAP_PROVIDER = "openai-codex";
 const GPT_MODEL_ID = /(?:^|\/)gpt-/;
 const LUNA_RECAP_MODEL = /(?:^|\/)gpt-5[.-]6-luna(?:$|[@:])/;
 
@@ -180,12 +183,13 @@ export function selectRecapModel(
     }
     if (!activeModel) return undefined;
 
-    const available = registry.getAvailable().filter((model) => model.provider === activeModel.provider);
-    if (activeModel.provider === "anthropic") {
-        return available.find((model) => model.id === ANTHROPIC_RECAP_MODEL) ?? activeModel;
-    }
+    const available = registry.getAvailable();
+    const luna = (provider: string) =>
+        available.find((model) => model.provider === provider && LUNA_RECAP_MODEL.test(model.id));
+    // No Codex login means no automatic recap rather than a rejected Anthropic request.
+    if (activeModel.provider === "anthropic") return luna(ANTHROPIC_SESSION_RECAP_PROVIDER);
     if (!GPT_MODEL_ID.test(activeModel.id)) return activeModel;
-    return available.find((model) => LUNA_RECAP_MODEL.test(model.id)) ?? activeModel;
+    return luna(activeModel.provider) ?? activeModel;
 }
 
 async function generateRecap(
