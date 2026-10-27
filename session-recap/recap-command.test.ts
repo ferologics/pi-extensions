@@ -51,8 +51,7 @@ it("turns reasoning off on every API", async () => {
         branch: exchange,
     }).recap();
     await loadRecap({
-        // Not the "anthropic" provider: Anthropic sessions draft with Codex. This checks the API path.
-        model: testModel("anthropic-messages", "anthropic-api", "claude-haiku-4-5"),
+        model: testModel("anthropic-messages", "anthropic", "claude-haiku-4-5"),
         branch: exchange,
     }).recap();
 

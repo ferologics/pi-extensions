@@ -6,7 +6,7 @@ Each recap is saved in the session file. Reopening the session shows the saved r
 
 Built for multi-Pi workflows where several agent sessions run in parallel tabs. The recap orients rather than reports: it states the high-level task first (what you're building or debugging), then the concrete next step. The last assistant message is already on screen; what you lose after a context switch is the task thread.
 
-Forked from [tmustier/pi-extensions](https://github.com/tmustier/pi-extensions/tree/main/session-recap) at `a360c9c` (session-recap 0.5.2), MIT licensed. This fork adds saved recaps, the recap on CLI reopen, and Codex recaps for Anthropic sessions.
+Forked from [tmustier/pi-extensions](https://github.com/tmustier/pi-extensions/tree/main/session-recap) at `a360c9c` (session-recap 0.5.2), MIT licensed. This fork adds saved recaps and the recap on CLI reopen.
 
 ## How it triggers
 
@@ -46,14 +46,14 @@ If focus events cause any weirdness in your terminal, run with `--recap-disable-
 
 ## Model
 
-The recap chooses a cheap model and reuses the login of the provider it picks:
+The recap reuses the active provider's authentication and chooses a cheaper model when available:
 
 1. `--recap-model` when set.
-2. `openai-codex/gpt-5.6-luna` for Anthropic sessions, and no automatic recap without a Codex login. Anthropic bills a subscription request without Claude Code's billing header to usage credits and rejects it when there are none. pi-cc-patch adds that header only to Pi's own requests, never to an extension's direct model call.
+2. `anthropic/claude-haiku-4-5` for Anthropic sessions.
 3. GPT-5.6 Luna when the active model is GPT and its provider offers Luna.
 4. The currently active model otherwise.
 
-The recap sends no system prompt, no tools and no Agent Skills, and never writes to the prompt cache. Reasoning is always off: most APIs disable thinking when no reasoning level is requested, and Codex models are sent an explicit `reasoningEffort: "none"` because they would otherwise fall back to the server-side default. Only a cleanly stopped response becomes a recap; a failed stream is reported as an error notification.
+The recap sends no system prompt, no tools and no Agent Skills, and never writes to the prompt cache. Pi saves its system prompt and tools in the session as `system` messages; the recap leaves those out and sends only the conversation. Anthropic bills a subscription request that carries Pi's prompt as third-party usage. Reasoning is always off: most APIs disable thinking when no reasoning level is requested, and Codex models are sent an explicit `reasoningEffort: "none"` because they would otherwise fall back to the server-side default. Only a cleanly stopped response becomes a recap; a failed stream is reported as an error notification.
 
 It uses a 30-message window from Pi's current projected context, plus the earliest non-omitted user request on the active branch and the latest active compaction or branch summary. Context edits to that request are honoured, including replacement and omission. Large initial requests and tool results retain their beginning and end.
 
