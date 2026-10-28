@@ -44,7 +44,6 @@ Current extensions:
 - `pi-web`
 - `plan-mode`
 - `pi-verbosity-control`
-- `session-recap`
 
 ## pi-jobs daemon
 

@@ -13,9 +13,6 @@
       "@earendil-works/pi-agent-core": [
         "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core"
       ],
-      "@earendil-works/pi-ai/compat": [
-        "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/compat.d.ts"
-      ],
       "@earendil-works/pi-ai": [
         "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai"
       ],
