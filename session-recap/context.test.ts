@@ -109,41 +109,6 @@ it("adds a user boundary before an assistant-led window", () => {
     expect(context.messages[1].role).toBe("assistant");
 });
 
-it("leaves out the session's system prompt and tools", () => {
-    const tool = { name: "read", description: "Read a file", parameters: { type: "object", properties: {} } };
-    const context = recap([
-        {
-            type: "message",
-            message: {
-                role: "system",
-                content: "You are an expert coding assistant operating inside pi.",
-                sections: { project: "<project_context>Project rules</project_context>" },
-                toolsAdded: [tool],
-                timestamp: 1,
-            },
-        },
-        { type: "message", message: { role: "user", content: "Fix the login form.", timestamp: 2 } },
-        {
-            type: "message",
-            message: {
-                role: "system",
-                content: "Additional instructions.",
-                toolsRemoved: [{ name: "read" }],
-                timestamp: 3,
-            },
-        },
-        {
-            type: "message",
-            message: { role: "assistant", content: [{ type: "text", text: "Looking." }], timestamp: 4 },
-        },
-    ]);
-
-    expect(context.messages.map((message) => message.role)).toEqual(["user", "assistant"]);
-    expect(JSON.stringify(context)).not.toMatch(
-        /expert coding assistant|Project rules|Additional instructions|Read a file/,
-    );
-});
-
 it("does not repeat a recent initial request", () => {
     expect(recap([initialEntry]).broaderContext).toBeUndefined();
 });

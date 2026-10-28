@@ -18,10 +18,16 @@ it("lets an explicit recap model win", () => {
     expect(select(active, [], "openrouter/missing-model")).toBe(active);
 });
 
-it("uses Claude Haiku 4.5 for Anthropic sessions", () => {
+it("uses Codex GPT-5.6 Luna for Anthropic sessions", () => {
     const active = model("anthropic", "claude-opus-4-6");
     const haiku = model("anthropic", "claude-haiku-4-5");
-    expect(select(active, [haiku])).toBe(haiku);
+    const luna = model("openai-codex", "gpt-5.6-luna");
+    expect(select(active, [haiku, luna])).toBe(luna);
+});
+
+it("skips the recap for Anthropic sessions without a Codex login", () => {
+    const active = model("anthropic", "claude-opus-4-6");
+    expect(select(active, [active, model("anthropic", "claude-haiku-4-5")])).toBeUndefined();
 });
 
 it.each([

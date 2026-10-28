@@ -44,7 +44,10 @@ const CONVERSATION_ENTRY_TYPES = new Set<SessionEntry["type"]>([
 
 const DEFAULT_AWAY_SECONDS = 90;
 const DEFAULT_IDLE_SECONDS = 120;
-const ANTHROPIC_RECAP_MODEL = "claude-haiku-4-5";
+// Anthropic bills a subscription request without Claude Code's billing header to usage credits, and rejects it
+// when there are none. pi-cc-patch adds that header only to Pi's own requests, never to an extension's direct
+// model call, so Anthropic sessions draft recaps with Codex instead.
+const ANTHROPIC_SESSION_RECAP_PROVIDER = "openai-codex";
 const GPT_MODEL_ID = /(?:^|\/)gpt-/;
 const LUNA_RECAP_MODEL = /(?:^|\/)gpt-5[.-]6-luna(?:$|[@:])/;
 
@@ -99,27 +102,23 @@ export function buildRecapContext(entries: ProjectedSessionEntry[], branchEntrie
     }
     const initialTask = findInitialTask(branchEntries);
 
-    // Pi stores its system prompt and tools as `system` messages. Leave them out: the recap needs only the
-    // conversation, and Anthropic bills a subscription request that carries Pi's prompt as third-party usage.
     const messages = convertToLlm(
         entries
             .filter(({ sourceEntry }) => sourceEntry.type !== "compaction" && sourceEntry.type !== "branch_summary")
             .flatMap((entry) => entry.messages),
-    )
-        .filter((message) => message.role !== "system")
-        .map((message) => {
-            if (message.role !== "toolResult") return message;
-            return {
-                ...message,
-                content: message.content.map((block) => {
-                    if (block.type !== "text" || block.text.length <= TOOL_RESULT_EDGE_CHARS * 2) return block;
-                    return {
-                        ...block,
-                        text: `${block.text.slice(0, TOOL_RESULT_EDGE_CHARS)}\n… [tool result truncated for recap] …\n${block.text.slice(-TOOL_RESULT_EDGE_CHARS)}`,
-                    };
-                }),
-            };
-        });
+    ).map((message) => {
+        if (message.role !== "toolResult") return message;
+        return {
+            ...message,
+            content: message.content.map((block) => {
+                if (block.type !== "text" || block.text.length <= TOOL_RESULT_EDGE_CHARS * 2) return block;
+                return {
+                    ...block,
+                    text: `${block.text.slice(0, TOOL_RESULT_EDGE_CHARS)}\n… [tool result truncated for recap] …\n${block.text.slice(-TOOL_RESULT_EDGE_CHARS)}`,
+                };
+            }),
+        };
+    });
     let start = Math.max(0, messages.length - RECENT_MESSAGE_WINDOW);
     while (start > 0 && messages[start].role === "toolResult") start--;
     let recentMessages = messages.slice(start);
@@ -184,12 +183,13 @@ export function selectRecapModel(
     }
     if (!activeModel) return undefined;
 
-    const available = registry.getAvailable().filter((model) => model.provider === activeModel.provider);
-    if (activeModel.provider === "anthropic") {
-        return available.find((model) => model.id === ANTHROPIC_RECAP_MODEL) ?? activeModel;
-    }
+    const available = registry.getAvailable();
+    const luna = (provider: string) =>
+        available.find((model) => model.provider === provider && LUNA_RECAP_MODEL.test(model.id));
+    // No Codex login means no automatic recap rather than a rejected Anthropic request.
+    if (activeModel.provider === "anthropic") return luna(ANTHROPIC_SESSION_RECAP_PROVIDER);
     if (!GPT_MODEL_ID.test(activeModel.id)) return activeModel;
-    return available.find((model) => LUNA_RECAP_MODEL.test(model.id)) ?? activeModel;
+    return luna(activeModel.provider) ?? activeModel;
 }
 
 async function generateRecap(
