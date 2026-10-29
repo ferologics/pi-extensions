@@ -7,6 +7,7 @@ Custom extensions for [pi-coding-agent](https://www.npmjs.com/package/@earendil-
 | Extension                                       | Description                                                                        |
 | ----------------------------------------------- | ---------------------------------------------------------------------------------- |
 | [`deep-review`](deep-review/)                   | Run context-pack + direct OpenAI Codex/Platform deep review with live streaming UI |
+| [`pi-env-guard`](pi-env-guard/)                 | Keep secrets out of the agent's bash commands, with refill for nested Pi           |
 | [`pi-ghostty-hunk`](pi-ghostty-hunk/)           | Open Hunk in a new Ghostty window at the current repo root                         |
 | [`pi-ghostty-lazygit`](pi-ghostty-lazygit/)     | Open lazygit in a new Ghostty window at the current repo root                      |
 | [`pi-jobs`](pi-jobs/)                           | Scheduled agent jobs in a Pi Durable daemon, with a `/jobs` overlay and inbox      |

@@ -34,6 +34,7 @@ extension-name/
 Current extensions:
 
 - `deep-review`
+- `pi-env-guard`
 - `pi-ghostty-hunk`
 - `pi-ghostty-lazygit`
 - `pi-jobs`
