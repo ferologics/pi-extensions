@@ -5,13 +5,15 @@ export type Status = "working" | "needs-you" | "unseen" | "idle";
  * Turns session events into a status. Pure, so the reporter feeds it events and the tests can too.
  *
  * - working: a run is active.
- * - needs you: a blocking dialog opened during the run, or the run failed (until your next input).
+ * - needs you: a tool opened a blocking dialog, or the run failed (until your next input).
  * - unseen: the run finished while the terminal was unfocused (until you focus it or type).
  * - idle: everything else.
  */
 export class StatusTracker {
     private running = false;
     private dialog: string | undefined;
+    /** Tools executing right now. Only they open dialogs that ask you something: a dialog outside a tool is yours. */
+    private tools = 0;
     private pendingFailure: string | undefined;
     private failure: string | undefined;
     private unseen = false;
@@ -64,15 +66,24 @@ export class StatusTracker {
     runSettled(aborted: boolean): void {
         this.running = false;
         this.dialog = undefined;
+        this.tools = 0;
         if (!aborted && this.pendingFailure) this.failure = this.pendingFailure;
         else if (!aborted && !this.focused) this.unseen = true;
         this.pendingFailure = undefined;
         this.touch();
     }
 
-    /** A blocking dialog opened. Only dialogs during a run count: one opened while idle came from you. */
+    toolStarted(): void {
+        this.tools++;
+    }
+
+    toolEnded(): void {
+        this.tools = Math.max(0, this.tools - 1);
+    }
+
+    /** A blocking dialog opened. Only one a tool opened counts: commands like /jobs open dialogs too, even mid-run. */
     dialogOpened(title: string): void {
-        if (!this.running) return;
+        if (this.tools === 0) return;
         this.dialog = title;
         this.touch();
     }

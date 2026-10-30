@@ -62,9 +62,12 @@ export class Board implements Component {
     private groups: Group[] = [];
     private selectedPid: number | undefined;
     private peek: Peek | undefined;
+    private peekLoading = false;
     private choosingPriority = false;
     private scroll = 0;
     private flash = "";
+    /** Why the last read of Ghostty's windows failed; groups fall back to projects meanwhile. */
+    private layoutError = "";
     /** Inner width of the last render, so arrow keys move through the same columns you see. */
     private lastWidth = 80;
     private readonly timers: ReturnType<typeof setInterval>[];
@@ -87,15 +90,21 @@ export class Board implements Component {
         this.sessions = listLive(this.dir);
         this.groups = groupSessions(this.sessions, this.layout);
         const order = this.groups.flatMap((group) => group.sessions);
-        if (!order.some((session) => session.pid === this.selectedPid)) {
+        // While a peek is open the selection stays on its session, so a session that exits shows as ended.
+        if (!this.peek && !order.some((session) => session.pid === this.selectedPid)) {
             this.selectedPid = (order.find((session) => session.pid === process.pid) ?? order[0])?.pid;
         }
-        if (this.peek) void this.reloadPeek(false);
+        if (this.peek) void this.loadPeek();
         this.tui.requestRender();
     }
 
     private async refreshLayout(): Promise<void> {
-        this.layout = await readLayout();
+        try {
+            this.layout = await readLayout();
+            this.layoutError = "";
+        } catch (error) {
+            this.layoutError = `can't read Ghostty's windows: ${errorText(error)}`;
+        }
         this.groups = groupSessions(this.sessions, this.layout);
         this.tui.requestRender();
     }
@@ -104,27 +113,32 @@ export class Board implements Component {
         return this.sessions.find((session) => session.pid === this.selectedPid);
     }
 
-    private async reloadPeek(force: boolean): Promise<void> {
-        const session = this.selected();
-        if (!session?.sessionFile) {
-            this.peek = session
-                ? { pid: session.pid, parts: ["*(no session file yet)*"], mtimeMs: 0, scroll: 0 }
-                : undefined;
+    private openPeek(session: LiveSession): void {
+        this.peek = { pid: session.pid, parts: ["*(loading…)*"], mtimeMs: -1, scroll: Number.MAX_SAFE_INTEGER };
+        void this.loadPeek();
+    }
+
+    /** Re-read the peeked session's transcript when its file changed. One read at a time; a peek closed meanwhile stays closed. */
+    private async loadPeek(): Promise<void> {
+        const peek = this.peek;
+        const session = this.sessions.find((candidate) => candidate.pid === peek?.pid);
+        if (!peek || !session || this.peekLoading) return;
+        if (!session.sessionFile) {
+            this.peek = { ...peek, parts: ["*(no session file yet)*"] };
             return;
         }
+        this.peekLoading = true;
         try {
             const { mtimeMs } = await stat(session.sessionFile);
-            const previous = this.peek?.pid === session.pid ? this.peek : undefined;
-            if (!force && previous && previous.mtimeMs === mtimeMs) return;
+            if (mtimeMs === peek.mtimeMs) return;
             const parts = await readTail(session.sessionFile);
-            this.peek = { pid: session.pid, parts, mtimeMs, scroll: previous?.scroll ?? Number.MAX_SAFE_INTEGER };
+            if (this.peek?.pid === peek.pid) this.peek = { ...this.peek, parts, mtimeMs };
         } catch (error) {
-            this.peek = {
-                pid: session.pid,
-                parts: [`*(can't read the session: ${errorText(error)})*`],
-                mtimeMs: 0,
-                scroll: 0,
-            };
+            if (this.peek?.pid === peek.pid) {
+                this.peek = { ...this.peek, parts: [`*(can't read the session: ${errorText(error)})*`] };
+            }
+        } finally {
+            this.peekLoading = false;
         }
         this.tui.requestRender();
     }
@@ -220,7 +234,7 @@ export class Board implements Component {
         else if (matchesKey(data, "right") || data === "l") this.move("right");
         else if (matchesKey(data, "up") || data === "k") this.move("up");
         else if (matchesKey(data, "down") || data === "j") this.move("down");
-        else if (data === " " && session) void this.reloadPeek(true);
+        else if (data === " " && session) this.openPeek(session);
         else if (matchesKey(data, "return") && session) this.focus(session);
         else if (data === "p" && session) this.choosingPriority = true;
         this.tui.requestRender();
@@ -332,7 +346,8 @@ export class Board implements Component {
             .filter((status) => counts[status] > 0)
             .map((status) => th.fg(STATUS_LOOK[status].color, `${counts[status]} ${STATUS_LOOK[status].label}`))
             .join(th.fg("dim", " · "));
-        const title = ` ${th.fg("accent", th.bold("dude"))}  ${summary}${this.flash ? th.fg("dim", `  · ${this.flash}`) : ""}`;
+        const layoutError = this.layoutError ? th.fg("error", `  · ${this.layoutError}`) : "";
+        const title = ` ${th.fg("accent", th.bold("dude"))}  ${summary}${layoutError}${this.flash ? th.fg("dim", `  · ${this.flash}`) : ""}`;
         const row = (content: string) => {
             const clipped = truncateToWidth(content, inner);
             return `${th.fg("border", "│")} ${clipped}${" ".repeat(Math.max(0, inner - visibleWidth(clipped)))} ${th.fg("border", "│")}`;

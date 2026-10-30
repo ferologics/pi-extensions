@@ -40,9 +40,10 @@ describe("StatusTracker", () => {
         expect(tracker.status).toBe("idle");
     });
 
-    it("needs you while a dialog opened during a run is open", () => {
+    it("needs you while a dialog a tool opened is open", () => {
         const tracker = new StatusTracker();
         tracker.runStarted();
+        tracker.toolStarted();
         tracker.dialogOpened("Post to Slack?");
         expect(tracker.status).toBe("needs-you");
         expect(tracker.detail).toBe("Post to Slack?");
@@ -54,6 +55,17 @@ describe("StatusTracker", () => {
         const tracker = new StatusTracker();
         tracker.dialogOpened("custom");
         expect(tracker.status).toBe("idle");
+    });
+
+    it("ignores dialogs you open during a run outside a tool, like /jobs", () => {
+        const tracker = new StatusTracker();
+        tracker.runStarted();
+        tracker.dialogOpened("custom");
+        expect(tracker.status).toBe("working");
+        tracker.toolStarted();
+        tracker.toolEnded();
+        tracker.dialogOpened("custom");
+        expect(tracker.status).toBe("working");
     });
 
     it("needs you after a failed run until your next input, focused or not", () => {

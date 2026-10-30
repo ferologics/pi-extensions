@@ -16,7 +16,7 @@ const PRIORITY_TYPE = "the-dude-priority";
 const RECAP_TYPE = "session-recap";
 const SESSION_POLL_MS = 5000;
 const LABEL_CHARS = 120;
-/** Messages that may start runs in a row without input from you, so two sessions can't keep each other busy. */
+/** Messages that may start or continue runs in a row without input from you, so two sessions can't keep each other busy. */
 const MESSAGE_RUN_LIMIT = 3;
 
 /** Shared with the rest of the extension: what this session publishes, and whether the board is open here. */
@@ -33,14 +33,21 @@ interface ProcessState {
 function processState(): ProcessState {
     const key = Symbol.for("the-dude-reporter");
     const holder = globalThis as unknown as Record<symbol, ProcessState | undefined>;
-    let state = holder[key];
-    if (!state) {
-        state = {};
+    const existing = holder[key];
+    const state: ProcessState = existing ?? {};
+    if (!existing) {
         holder[key] = state;
         const dir = liveDir();
         process.on("exit", () => removeLive(dir, process.pid));
     }
-    state.terminalId ??= lookupTerminalId();
+    if (!state.terminalId) {
+        const lookup = lookupTerminalId();
+        state.terminalId = lookup;
+        // Keep only a successful lookup, so the next session start or /reload tries again.
+        lookup.catch(() => {
+            if (state.terminalId === lookup) state.terminalId = undefined;
+        });
+    }
     return state;
 }
 
@@ -87,6 +94,10 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
     let pendingPriority: { priority: Priority | null } | undefined;
     let messageRuns = 0;
     let published = "";
+    /** Set while writes fail, so a lasting failure is reported once. */
+    let writeFailing = false;
+    /** First line of the session's first prompt: the label whenever the session has no name. */
+    let firstPrompt = "";
 
     const current = (): LiveSession | undefined => {
         if (!base) return undefined;
@@ -105,22 +116,28 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
         const { updatedAt: _, ...comparable } = session;
         const key = JSON.stringify(comparable);
         if (key === published) return;
-        published = key;
+        // Report instead of throwing: the focus listener and the poll timer call this outside Pi's event handlers,
+        // where a throw would crash Pi. Unpublished state is written again on the next change or poll.
         try {
             writeLive(dir, session);
-        } catch {}
+        } catch (error) {
+            if (!writeFailing) {
+                const reason = error instanceof Error ? error.message : String(error);
+                ctx?.ui.notify(`the-dude: can't publish this session to the board: ${reason}`, "error");
+            }
+            writeFailing = true;
+            return;
+        }
+        published = key;
+        writeFailing = false;
     };
 
     /** Re-read what lives in the session file: label, priority and the latest recap. */
     const readSession = () => {
         if (!ctx || !base) return;
         const branch = ctx.sessionManager.getBranch();
-        const name = ctx.sessionManager.getSessionName()?.trim();
-        if (name) base.label = name.slice(0, LABEL_CHARS);
-        else if (!base.label) {
-            const first = branch.map(userText).find((text) => text?.trim());
-            if (first) base.label = firstLine(first);
-        }
+        if (!firstPrompt) firstPrompt = firstLine(branch.map(userText).find((text) => text?.trim()) ?? "");
+        base.label = ctx.sessionManager.getSessionName()?.slice(0, LABEL_CHARS) || firstPrompt;
         if (!pendingPriority) {
             const saved = latestCustom<{ priority: Priority | null }>(branch, PRIORITY_TYPE)?.data.priority;
             if (saved === null || saved === undefined) delete base.priority;
@@ -147,15 +164,20 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
             display: true,
             details: { from: request.from },
         };
+        // Past the limit, a busy session shows the message at the end of its turn, an idle one right away; neither
+        // starts or continues a run on it.
+        if (messageRuns >= MESSAGE_RUN_LIMIT) {
+            pi.sendMessage(message, { triggerTurn: false });
+            return {
+                ok: true,
+                data: "delivered without starting or continuing a run: too many messages in a row without input from the user",
+            };
+        }
+        messageRuns++;
         if (!live.isIdle()) {
             pi.sendMessage(message, { triggerTurn: true, deliverAs: request.mode === "steer" ? "steer" : "followUp" });
             return { ok: true, data: request.mode === "steer" ? "steered" : "queued as a follow-up" };
         }
-        if (messageRuns >= MESSAGE_RUN_LIMIT) {
-            pi.sendMessage(message, { triggerTurn: false });
-            return { ok: true, data: "delivered without starting a run: too many message-started runs in a row" };
-        }
-        messageRuns++;
         pi.sendMessage(message, { triggerTurn: true });
         return { ok: true, data: "delivered; it started a run" };
     };
@@ -214,6 +236,7 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
         tracker = new StatusTracker(!startCtx.isIdle());
         pendingPriority = undefined;
         messageRuns = 0;
+        firstPrompt = "";
         const now = new Date().toISOString();
         const cwd = startCtx.sessionManager.getCwd();
         base = {
@@ -237,12 +260,24 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
 
         const session = base;
         const state = processState();
-        void Promise.all([projectOf(cwd), state.terminalId]).then(
-            ([project, terminalId]: [Project, string | undefined]) => {
-                if (base !== session) return;
-                session.project = project;
-                if (terminalId) session.terminalId = terminalId;
+        void projectOf(cwd).then((project: Project) => {
+            if (base !== session) return;
+            session.project = project;
+            publish();
+        });
+        state.terminalId!.then(
+            (terminalId) => {
+                if (base !== session || !terminalId) return;
+                session.terminalId = terminalId;
                 publish();
+            },
+            (error: unknown) => {
+                if (base !== session) return;
+                const reason = error instanceof Error ? error.message : String(error);
+                startCtx.ui.notify(
+                    `the-dude: can't find this session's Ghostty terminal, so the board can't group it under its window or jump to it (/reload retries): ${reason}`,
+                    "warning",
+                );
             },
         );
         try {
@@ -272,8 +307,10 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
         if (event.source === "extension") return;
         messageRuns = 0;
         tracker.input();
-        const prompt = !event.text.trimStart().startsWith("/");
-        if (prompt && base && !base.label && !ctx?.sessionManager.getSessionName()) base.label = firstLine(event.text);
+        if (!firstPrompt && !event.text.trimStart().startsWith("/")) {
+            firstPrompt = firstLine(event.text);
+            readSession();
+        }
         publish();
     });
 
@@ -295,6 +332,10 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
         readSession();
         publish();
     });
+
+    pi.on("tool_execution_start", () => tracker.toolStarted());
+
+    pi.on("tool_execution_end", () => tracker.toolEnded());
 
     pi.on("ui_prompt_start", (event) => {
         // The board's own overlay goes through the same dialog API; it is not the session asking you.

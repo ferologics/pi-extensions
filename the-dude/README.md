@@ -24,12 +24,12 @@ Priority is saved in the session itself (a `the-dude-priority` custom entry), so
 
 ## Statuses
 
-| Status        | When                                                                                                                 |
-| ------------- | -------------------------------------------------------------------------------------------------------------------- |
-| working       | A run is active.                                                                                                     |
-| needs you     | A blocking dialog (confirm, select, input) opened during the run, or the run failed. A failure stays until you type. |
-| done (unseen) | The run finished while the terminal was unfocused. Clears when you focus the terminal or type.                       |
-| idle          | Everything else.                                                                                                     |
+| Status        | When                                                                                                                                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| working       | A run is active.                                                                                                                                                                                           |
+| needs you     | A tool opened a blocking dialog (confirm, select, input), or the run failed. A failure stays until you type. Dialogs you open yourself (`/jobs`, `/btw`) don't count unless a tool is running at the time. |
+| done (unseen) | The run finished while the terminal was unfocused. Clears when you focus the terminal or type.                                                                                                             |
+| idle          | Everything else.                                                                                                                                                                                           |
 
 Focus comes from terminal focus reports (DECSET 1004). Before the first report, a session counts as focused. Status starts over at `/reload`.
 
@@ -71,9 +71,10 @@ Each session also listens on `~/.local/state/pi/live/<pid>.sock` (only your user
 
 Replies are `{"ok":true,"data":…}` or `{"ok":false,"error":"…"}`.
 
-Every session has one tool for it, `send_to_session`: target a session by id or label; an unknown or ambiguous target returns the live sessions. After 3 runs in a row started by messages with no input from you, further messages are shown but start no run, so two sessions can't keep each other busy.
+Every session has one tool for it, `send_to_session`: target a session by id or label; an unknown or ambiguous target returns the live sessions. After 3 messages in a row with no input from you, further messages are shown but neither start nor continue a run, so two sessions can't keep each other busy.
 
 ## Requirements
 
 - Grouping by window and Enter need Ghostty on macOS (AppleScript). Elsewhere the board groups by project and Enter only works for the session it was opened in.
+- When a session can't look up its Ghostty terminal, it shows a warning and `/reload` tries again. When the board can't read Ghostty's windows, its title says why and it groups by project meanwhile.
 - Focus reports need a terminal that sends them. In tmux, `set -g focus-events on`.

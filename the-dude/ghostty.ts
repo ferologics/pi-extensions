@@ -1,5 +1,5 @@
 // The window layer: Ghostty on macOS through its AppleScript API. Everything here returns undefined
-// elsewhere, so other terminals and platforms can slot in behind the same functions.
+// elsewhere, so other terminals and platforms can slot in behind the same functions. Failures throw.
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -24,37 +24,29 @@ async function jxa(script: string, ...args: string[]): Promise<string> {
 /** This process's terminal: Ghostty's `id` is the surface UUID it keeps across restarts. */
 export async function lookupTerminalId(): Promise<string | undefined> {
     if (!inGhostty()) return undefined;
-    try {
-        const { stdout: tty } = await run("ps", ["-o", "tty=", "-p", String(process.pid)]);
-        const ids = await jxa(
-            "function run([tty]) { return Application('Ghostty').terminals.whose({ tty }).id().join('\\n'); }",
-            `/dev/${tty.trim()}`,
-        );
-        return ids.split("\n")[0] || undefined;
-    } catch {
-        return undefined;
-    }
+    const { stdout: tty } = await run("ps", ["-o", "tty=", "-p", String(process.pid)]);
+    const ids = await jxa(
+        "function run([tty]) { return Application('Ghostty').terminals.whose({ tty }).id().join('\\n'); }",
+        `/dev/${tty.trim()}`,
+    );
+    return ids.split("\n")[0] || undefined;
 }
 
 /** Windows front to back, with their tabs' terminals. Bulk property reads keep this to a few Apple events. */
 export async function readLayout(): Promise<GhosttyWindow[] | undefined> {
     if (process.platform !== "darwin") return undefined;
-    try {
-        const output = await jxa(
-            [
-                "function run() {",
-                "  const app = Application('Ghostty');",
-                "  if (!app.running()) return '[]';",
-                "  const ids = app.windows.id();",
-                "  const tabs = app.windows.tabs.terminals.id();",
-                "  return JSON.stringify(ids.map((id, i) => ({ id, tabs: tabs[i] })));",
-                "}",
-            ].join("\n"),
-        );
-        return JSON.parse(output) as GhosttyWindow[];
-    } catch {
-        return undefined;
-    }
+    const output = await jxa(
+        [
+            "function run() {",
+            "  const app = Application('Ghostty');",
+            "  if (!app.running()) return '[]';",
+            "  const ids = app.windows.id();",
+            "  const tabs = app.windows.tabs.terminals.id();",
+            "  return JSON.stringify(ids.map((id, i) => ({ id, tabs: tabs[i] })));",
+            "}",
+        ].join("\n"),
+    );
+    return JSON.parse(output) as GhosttyWindow[];
 }
 
 /** Bring a terminal's window to the front, select its tab and focus it. */
