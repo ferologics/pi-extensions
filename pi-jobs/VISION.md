@@ -14,5 +14,7 @@ pi-jobs is the one place for recurring agent work: website and news watches, rel
 
 - v0 runs on the Mac under launchd with local tools.
 - Next: run the same daemon on an always-on home box (systemd, tailscale), reach the Mac through `pi-env` for jobs that need it, and add a small web page for viewing jobs from any device.
-- Session-scoped watches (deploys, CI, another agent) stay a separate, in-session concern.
+- Jobs come in two kinds. Standing jobs recur and have no home session. Session watches are jobs an agent creates from a session to wait for something, act on it, and report back. A watch outlives the Pi process, so it runs in the daemon like any job, but it belongs to its source session: it records that session, and its results lead back to it.
+- Watches that should die with their session (tailing a deploy or a CI run) stay an in-session concern, outside pi-jobs.
+- A finished or deleted job keeps its history and notifications.
 - Keep it small: no job pools, no plugin system, no second scheduler language beyond cron.
