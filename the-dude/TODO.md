@@ -10,16 +10,18 @@ Backlog for The Dude and Duck. Duck items move to `extensions/duck/TODO.md` once
 
 Done when you can open the board and see your real sessions with correct statuses.
 
-- [ ] Reporter in every interactive session (not pi-subagent children): `~/.local/state/pi/live/<pid>.json` with session id and file, cwd, project, label, Ghostty terminal id, status, priority and latest recap. Removed on exit; readers skip dead pids.
-- [ ] Statuses, deterministic:
+- [x] Reporter in every interactive session (not pi-subagent children): `~/.local/state/pi/live/<pid>.json` with session id and file, cwd, project, label, Ghostty terminal id, status, priority and latest recap. Removed on exit; readers skip dead pids.
+- [x] Statuses, deterministic:
   - working: a run is active (`agent_start` until `agent_settled`)
   - needs you: a blocking dialog opened during a run (`ui_prompt_start`), or the run failed
   - done but unseen: the run finished while the terminal was unfocused (DECSET 1004), cleared on focus or input
   - idle: everything else
-- [ ] Project identity: origin remote URL (clones group together), else the git common dir (worktrees), else the cwd.
-- [ ] Socket per session (`<pid>.sock`): messages and priority changes from the board.
-- [ ] `send_to_session` tool in every session: target by session id or label, follow-up or steer, labeled with the sender.
-- [ ] `/dude` board overlay in any session: grouped by Ghostty window, windows sorted by priority; cards with status, project, label and recap; space peeks the transcript tail, Enter focuses the terminal, `p` sets p0–p3 (saved in the session, survives restore).
+- [x] Project identity: origin remote URL (clones group together), else the git common dir (worktrees), else the cwd.
+- [x] Socket per session (`<pid>.sock`): messages and priority changes from the board.
+- [x] `send_to_session` tool in every session: target by session id or label, follow-up or steer, labeled with the sender.
+- [x] `/dude` board overlay in any session: grouped by Ghostty window, windows sorted by priority; cards with status, project, label and recap; space peeks the transcript tail, Enter focuses the terminal, `p` sets p0–p3 (saved in the session, survives restore).
+- [ ] Check on your real sessions in Ghostty: window grouping, Enter, done but unseen from real focus changes. Tested so far in tmux with injected focus reports, plus terminal lookup and focus on one Ghostty terminal.
+- [ ] Keep status across `/reload` (it starts over today, so a failed or unseen session reads idle after a reload).
 
 ## Slice 2: The Dude
 
