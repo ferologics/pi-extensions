@@ -24,6 +24,12 @@
  * - If a REVIEW_GUIDELINES.md file exists in the same directory as .pi,
  *   its contents are appended to the review prompt.
  *
+ * Triage:
+ * - After the review turn, a follow-up turn runs /skill:review-triage (pi-shit's
+ *   review-triage skill): it checks each finding against the code,
+ *   leaves out the ones the code disproves, re-ranks the rest by priority and recommends
+ *   fix, ask or skip for each. It doesn't change code unless the user asks for fixes.
+ *
  * Note: PR review requires a clean working tree (no uncommitted changes to tracked files).
  */
 
@@ -47,6 +53,8 @@ import { promises as fs } from "node:fs";
 let reviewOriginId: string | undefined = undefined;
 let endReviewInProgress = false;
 let reviewCustomInstructions: string | undefined = undefined;
+// Set when a run starts from the review prompt; the triage follow-up runs once that run settles.
+let triageArmed = false;
 
 const REVIEW_STATE_TYPE = "review-session";
 const REVIEW_ANCHOR_TYPE = "review-anchor";
@@ -194,6 +202,7 @@ Flag issues that:
 2. Flag one-off helper functions that add indirection without improving clarity or reuse (for example, \`isRecord\` or \`asString\`).
 3. Flag abstractions introduced without a concrete need in the reviewed change, including wrappers created only for hypothetical future use.
 4. Flag defensive checks or fallback behavior that mask programming errors, especially when callers already guarantee the relevant invariants.
+5. Flag band-aids: special cases layered on shared code, guards around code the change should have removed, and code that goes around an existing path instead of through it.
 
 ## Untrusted User Input
 
@@ -680,6 +689,20 @@ export default function reviewExtension(pi: ExtensionAPI) {
 
 	pi.on("session_tree", (_event, ctx) => {
 		applyAllReviewState(ctx);
+	});
+
+	// Arm triage only for the run the review prompt actually started. A review prompt that
+	// never starts a run (for example a model or auth error) leaves nothing armed.
+	pi.on("before_agent_start", (event) => {
+		triageArmed = event.messageType === "user" && event.prompt.startsWith(REVIEW_RUBRIC);
+	});
+
+	pi.on("agent_settled", (event) => {
+		if (!triageArmed) return;
+		triageArmed = false;
+		if (!event.aborted) {
+			pi.sendUserMessage("/skill:review-triage", { expandPromptTemplates: true });
+		}
 	});
 
 	/**

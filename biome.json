@@ -20,7 +20,7 @@
         }
     },
     "files": {
-        "includes": ["**/*.ts"],
+        "includes": ["**/*.ts", "!pi-review"],
         "ignoreUnknown": true
     }
 }

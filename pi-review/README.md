@@ -17,6 +17,7 @@ pi install git:github.com/earendil-works/pi-review
 - Review a GitHub **pull request** (checks it out locally via `gh`)
 - Review one or more **folders/files** as a snapshot (not a diff)
 - Produce prioritized findings with a clear verdict and actionable follow-ups
+- Triage the findings in a follow-up turn by running pi-shit's `/skill:review-triage`: check each against the code, leave out the ones the code disproves, re-rank the rest and recommend fix, ask or skip
 - It separates feedback to the agent from human callouts
 
 It also supports custom shared instructions that are loaded from `REVIEW_GUIDELINES.md`.
