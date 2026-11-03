@@ -71,7 +71,14 @@ export function tailParts(branch: SessionEntry[]): string[] {
         if (entry.type !== "message") continue;
         const message = entry.message;
         if (message.role === "user") {
-            parts.push(`**You:** ${clip(textOf(message.content as Content), USER_CHARS)}`);
+            // Messages from other sessions arrive as user messages that start with a header naming their origin.
+            const text = textOf(message.content as Content);
+            const header = text.match(MESSAGE_HEADER)?.[0];
+            parts.push(
+                header
+                    ? `**✉ ${header.trim().slice(1, -1)}:** ${clip(text.slice(header.length), USER_CHARS)}`
+                    : `**You:** ${clip(text, USER_CHARS)}`,
+            );
         } else if (message.role === "assistant") {
             const lines: string[] = [];
             for (const block of message.content) {

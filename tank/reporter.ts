@@ -8,7 +8,7 @@ import { FOCUS_DISABLE, FOCUS_ENABLE, FocusParser } from "./focus.js";
 import { lookupTerminalId } from "./ghostty.js";
 import { type LiveSession, liveDir, type Priority, removeLive, socketPath, writeLive } from "./live.js";
 import { type Project, projectOf } from "./project.js";
-import { MESSAGE_TYPE, messageContent } from "./message.js";
+import { MESSAGE_HEADER, MESSAGE_TYPE, messageContent } from "./message.js";
 import { close, listen, type Request, type Response } from "./socket.js";
 import { StatusTracker } from "./status.js";
 
@@ -136,7 +136,10 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
     const readSession = () => {
         if (!ctx || !base) return;
         const branch = ctx.sessionManager.getBranch();
-        if (!firstPrompt) firstPrompt = firstLine(branch.map(userText).find((text) => text?.trim()) ?? "");
+        if (!firstPrompt) {
+            const prompt = branch.map(userText).find((text) => text?.trim() && !MESSAGE_HEADER.test(text));
+            firstPrompt = firstLine(prompt ?? "");
+        }
         base.label = ctx.sessionManager.getSessionName()?.slice(0, LABEL_CHARS) || firstPrompt;
         if (!pendingPriority) {
             const saved = latestCustom<{ priority: Priority | null }>(branch, PRIORITY_TYPE)?.data.priority;
@@ -158,28 +161,28 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
     };
 
     const deliver = (request: Extract<Request, { type: "send" }>, live: ExtensionContext): Response => {
-        const message = {
-            customType: MESSAGE_TYPE,
-            content: messageContent(request.message, request.from),
-            display: true,
-            details: { from: request.from },
-        };
+        const content = messageContent(request.message, request.from);
         // Past the limit, a busy session shows the message at the end of its turn, an idle one right away; neither
         // starts or continues a run on it.
         if (messageRuns >= MESSAGE_RUN_LIMIT) {
-            pi.sendMessage(message, { triggerTurn: false });
+            pi.sendMessage(
+                { customType: MESSAGE_TYPE, content, display: true, details: { from: request.from } },
+                {
+                    triggerTurn: false,
+                },
+            );
             return {
                 ok: true,
                 data: "delivered without starting or continuing a run: too many messages in a row without input from the user",
             };
         }
         messageRuns++;
-        if (!live.isIdle()) {
-            pi.sendMessage(message, { triggerTurn: true, deliverAs: request.mode === "steer" ? "steer" : "followUp" });
-            return { ok: true, data: request.mode === "steer" ? "steered" : "queued as a follow-up" };
-        }
-        pi.sendMessage(message, { triggerTurn: true });
-        return { ok: true, data: "delivered; it started a run" };
+        // As a user message it goes through Pi's own queue: shown above the editor while it waits, and put back into
+        // the editor when a run is aborted, like a message you typed. An idle session ignores deliverAs and starts a run.
+        const idle = live.isIdle();
+        pi.sendUserMessage(content, { deliverAs: request.mode === "steer" ? "steer" : "followUp" });
+        if (idle) return { ok: true, data: "delivered; it started a run" };
+        return { ok: true, data: request.mode === "steer" ? "steered" : "queued as a follow-up" };
     };
 
     const handle = (request: Request): Response => {

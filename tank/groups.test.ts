@@ -129,4 +129,21 @@ describe("peek", () => {
         expect(markdown).toContain("**Error:** the request failed");
         expect(markdown).toContain("**You:** fourth");
     });
+
+    it("shows a message from another session as that, not as yours", () => {
+        const at = "2026-10-28T10:00:00.000Z";
+        const header = "[Message from another Pi session (project app, session s1)]\n\n";
+        const entries = [
+            { type: "session", version: 3, id: "s", timestamp: at, cwd: "/" },
+            {
+                type: "message",
+                id: "u1",
+                parentId: null,
+                timestamp: at,
+                message: { role: "user", content: `${header}please review`, timestamp: 0 },
+            },
+        ] as unknown as Parameters<typeof currentBranch>[0];
+        const markdown = tailParts(currentBranch(entries)).join("\n\n");
+        expect(markdown).toBe("**✉ Message from another Pi session (project app, session s1):** please review");
+    });
 });

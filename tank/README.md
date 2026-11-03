@@ -66,7 +66,7 @@ Every interactive session (not print/RPC mode, not pi-subagent children) writes 
 
 Each session also listens on `~/.local/state/pi/live/<pid>.sock` (only your user can open it) for newline-delimited JSON:
 
-- `{"type":"send","message":"…","mode":"follow_up"|"steer","from":{"sessionId","label","project"}}` shows the message in the session, labeled with the sender. An idle session starts a run on it; a busy one queues it as a follow-up (default) or a steer.
+- `{"type":"send","message":"…","mode":"follow_up"|"steer","from":{"sessionId","label","project"}}` delivers the message as a user message that starts with `[Message from another Pi session (project …, session …)]`. An idle session starts a run on it. A busy one queues it as a follow-up (default) or a steer in Pi's own queue: it shows above the editor while it waits, and an abort puts it back into the editor like a message you typed.
 - `{"type":"priority","priority":0|1|2|3|null}` sets the priority, as `p` on the board does.
 
 Replies are `{"ok":true,"data":…}` or `{"ok":false,"error":"…"}`.
