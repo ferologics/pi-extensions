@@ -17,6 +17,8 @@ import { request } from "./socket.js";
 import type { Status } from "./status.js";
 
 const REFRESH_MS = 1000;
+/** Hyper+T (Caps Lock as Hyper): shows the board from anywhere in Pi and hides it again. Needs the Kitty keyboard protocol. */
+export const TOGGLE_KEY = "ctrl+shift+alt+super+t";
 const LAYOUT_MS = 2000;
 /** Box border, title, blank line and hint rows around the body. */
 const CHROME_ROWS = 5;
@@ -216,6 +218,10 @@ export class Board implements Component {
     handleInput(data: string): void {
         const session = this.selected();
         this.flash = "";
+        if (matchesKey(data, TOGGLE_KEY)) {
+            this.done();
+            return;
+        }
         if (this.choosingPriority) {
             this.choosingPriority = false;
             if (session && /^[0-3]$/.test(data)) this.setPriority(session, Number(data) as Priority);

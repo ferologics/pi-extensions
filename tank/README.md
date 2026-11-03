@@ -6,7 +6,7 @@ This is the first slice of Tank, a meta agent for running many sessions in paral
 
 ## The board
 
-`/tank` opens a fullscreen overlay:
+`/tank` or Hyper+T opens a fullscreen overlay, also while you are typing a message; Hyper+T closes it again. Hyper+T is `ctrl+shift+alt+super+t` (Caps Lock as Hyper), which needs a terminal that reports `super` through the Kitty keyboard protocol, like Ghostty.
 
 - One group per Ghostty window, sessions in tab order. The header lists the window's projects and its best priority. Windows with a p0 session come first.
 - Sessions outside Ghostty (tmux, other terminals) are grouped by project after the windows.

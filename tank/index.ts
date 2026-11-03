@@ -4,9 +4,9 @@
  */
 
 import { StringEnum, Type } from "@earendil-works/pi-ai";
-import { type ExtensionAPI, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI, type ExtensionContext, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
-import { Board } from "./board.js";
+import { Board, TOGGLE_KEY } from "./board.js";
 import { type LiveSession, listLive, liveDir, socketPath } from "./live.js";
 import { MESSAGE_HEADER, MESSAGE_TYPE, senderLine } from "./message.js";
 import { registerReporter } from "./reporter.js";
@@ -103,25 +103,33 @@ export default function tank(pi: ExtensionAPI): void {
         },
     });
 
+    const openBoard = async (ctx: ExtensionContext) => {
+        if (ctx.mode !== "tui") {
+            ctx.ui.notify("The tank board needs interactive mode", "error");
+            return;
+        }
+        reporter.setBoardOpen(true);
+        try {
+            await ctx.ui.custom<void>(
+                (tui, theme, _keybindings, done) => new Board(tui, theme, liveDir(), () => done()),
+                {
+                    overlay: true,
+                    overlayOptions: { width: "100%", maxHeight: "100%" },
+                },
+            );
+        } finally {
+            reporter.setBoardOpen(false);
+        }
+    };
+
     pi.registerCommand("tank", {
         description: "Board of every live Pi session: status, recap, peek, jump to its terminal",
-        handler: async (_args, ctx) => {
-            if (ctx.mode !== "tui") {
-                ctx.ui.notify("/tank needs interactive mode", "error");
-                return;
-            }
-            reporter.setBoardOpen(true);
-            try {
-                await ctx.ui.custom<void>(
-                    (tui, theme, _keybindings, done) => new Board(tui, theme, liveDir(), () => done()),
-                    {
-                        overlay: true,
-                        overlayOptions: { width: "100%", maxHeight: "100%" },
-                    },
-                );
-            } finally {
-                reporter.setBoardOpen(false);
-            }
-        },
+        handler: (_args, ctx) => openBoard(ctx),
+    });
+
+    // Opens the board even while you are typing; the board closes on the same key.
+    pi.registerShortcut(TOGGLE_KEY, {
+        description: "Show or hide the tank board (Hyper+T)",
+        handler: (ctx) => openBoard(ctx),
     });
 }

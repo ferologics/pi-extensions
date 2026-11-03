@@ -3,7 +3,7 @@ import { appendFileSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
-import type { TUI } from "@earendil-works/pi-tui";
+import { setKittyProtocolActive, type TUI } from "@earendil-works/pi-tui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Board } from "./board.js";
 import { readLayout } from "./ghostty.js";
@@ -193,5 +193,20 @@ describe("Board colors", () => {
         expect(screen).toContain("the recap");
         expect(screen).not.toContain(`${fgCode("dim")}the recap`);
         expect(screen).not.toContain(`${fgCode("muted")}the recap`);
+    });
+});
+
+describe("Board toggle key", () => {
+    it("closes the board on Hyper+T, the key that opens it", () => {
+        vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+        const dir = mkdtempSync(join(tmpdir(), "tank-toggle-"));
+        const done = vi.fn();
+        const board = new Board(tui, theme as unknown as Theme, dir, done);
+        setKittyProtocolActive(true);
+        board.handleInput("\x1b[116;16u");
+        expect(done).toHaveBeenCalledOnce();
+        board.dispose();
+        vi.useRealTimers();
+        rmSync(dir, { recursive: true, force: true });
     });
 });
