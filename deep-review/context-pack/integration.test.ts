@@ -8,6 +8,12 @@ import { buildContextPack, type ContextPackOptions } from "./index.js";
 
 const execFileAsync = promisify(execFile);
 
+// Git hooks export GIT_INDEX_FILE and other GIT_* variables (for example during `git commit -- <paths>`).
+// Clear them so git in the temp repos below, including buildContextPack's own calls, can't touch the caller's repo.
+for (const key of Object.keys(process.env)) {
+    if (key.startsWith("GIT_")) delete process.env[key];
+}
+
 async function run(cwd: string, command: string, args: string[]): Promise<string> {
     const { stdout } = await execFileAsync(command, args, {
         cwd,
