@@ -1,38 +1,21 @@
 /**
- * Tank, slice 1: every interactive session publishes its state and listens for messages, and `/tank` shows them
- * all on one board. See README.md, and VISION.md / TODO.md for where this goes.
+ * Tank: every interactive session publishes its state and listens for messages, `/tank` shows them all on one
+ * board, and sessions in Tank's home are Tank, the meta agent. See README.md, and VISION.md / TODO.md for where this goes.
  */
 
 import { StringEnum, Type } from "@earendil-works/pi-ai";
 import { type ExtensionAPI, type ExtensionContext, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { registerTank } from "./agent.js";
 import { Board, TOGGLE_KEY } from "./board.js";
-import { type LiveSession, listLive, liveDir, socketPath } from "./live.js";
+import { listLive, liveDir, resolveTarget, socketPath } from "./live.js";
 import { MESSAGE_HEADER, MESSAGE_TYPE, senderLine } from "./message.js";
 import { registerReporter } from "./reporter.js";
 import { request, type Sender } from "./socket.js";
 
-function listLine(session: LiveSession): string {
-    return `- ${session.sessionId} · ${session.project.name} · "${session.label}" · ${session.status}`;
-}
-
-/** A session by id, id prefix, exact label or unique label substring. */
-export function resolveTarget(sessions: LiveSession[], target: string): LiveSession | string {
-    const wanted = target.trim().toLowerCase();
-    const byId = sessions.filter((session) => session.sessionId === wanted || session.sessionId.startsWith(wanted));
-    if (byId.length === 1 && wanted.length >= 8) return byId[0]!;
-    const exact = sessions.filter((session) => session.label.toLowerCase() === wanted);
-    if (exact.length === 1) return exact[0]!;
-    const partial = sessions.filter((session) => session.label.toLowerCase().includes(wanted));
-    if (partial.length === 1 && exact.length === 0) return partial[0]!;
-    const list = sessions.length > 0 ? sessions.map(listLine).join("\n") : "(none)";
-    const problem =
-        exact.length > 1 || partial.length > 1 ? "matches more than one session" : "matches no live session";
-    return `"${target}" ${problem}. Live sessions:\n${list}`;
-}
-
 export default function tank(pi: ExtensionAPI): void {
     const reporter = registerReporter(pi);
+    registerTank(pi);
 
     pi.registerMessageRenderer<{ from?: Sender }>(MESSAGE_TYPE, (message, { expanded }, theme) => {
         const content = typeof message.content === "string" ? message.content : "";

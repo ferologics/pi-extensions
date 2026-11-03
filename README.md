@@ -4,21 +4,21 @@ Custom extensions for [pi-coding-agent](https://www.npmjs.com/package/@earendil-
 
 ## Extensions
 
-| Extension                                       | Description                                                                        |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [`deep-review`](deep-review/)                   | Run context-pack + direct OpenAI Codex/Platform deep review with live streaming UI |
-| [`pi-env-guard`](pi-env-guard/)                 | Keep secrets out of the agent's bash commands, with refill for nested Pi           |
-| [`pi-ghostty-hunk`](pi-ghostty-hunk/)           | Open Hunk in a new Ghostty window at the current repo root                         |
-| [`pi-ghostty-lazygit`](pi-ghostty-lazygit/)     | Open lazygit in a new Ghostty window at the current repo root                      |
-| [`pi-jobs`](pi-jobs/)                           | Scheduled agent jobs in a Pi Durable daemon, with a `/jobs` overlay and inbox      |
-| [`pi-notify`](pi-notify/)                       | Desktop notifications when the agent finishes                                      |
-| [`pi-quote-copy`](pi-quote-copy/)               | Copy a quoted or fenced block from the last response as raw Markdown               |
-| [`pi-slack-user`](pi-slack-user/)               | Read Slack permalinks and post confirmed replies with a user OAuth token           |
-| [`pi-system-theme`](pi-system-theme/)           | Sync Pi theme with macOS dark/light mode and configurable theme names              |
-| [`pi-web`](pi-web/)                             | Web search (Exa, Brave, Claude, Codex, Google) and page fetching                   |
-| [`plan-mode`](plan-mode/)                       | Read-only plan mode with progress tracking and questionnaire support               |
-| [`pi-verbosity-control`](pi-verbosity-control/) | Per-model OpenAI verbosity overrides with a keyboard toggle                        |
-| [`tank`](tank/)                                 | `/tank` board of every live Pi session, plus messages between sessions             |
+| Extension                                       | Description                                                                             |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [`deep-review`](deep-review/)                   | Run context-pack + direct OpenAI Codex/Platform deep review with live streaming UI      |
+| [`pi-env-guard`](pi-env-guard/)                 | Keep secrets out of the agent's bash commands, with refill for nested Pi                |
+| [`pi-ghostty-hunk`](pi-ghostty-hunk/)           | Open Hunk in a new Ghostty window at the current repo root                              |
+| [`pi-ghostty-lazygit`](pi-ghostty-lazygit/)     | Open lazygit in a new Ghostty window at the current repo root                           |
+| [`pi-jobs`](pi-jobs/)                           | Scheduled agent jobs in a Pi Durable daemon, with a `/jobs` overlay and inbox           |
+| [`pi-notify`](pi-notify/)                       | Desktop notifications when the agent finishes                                           |
+| [`pi-quote-copy`](pi-quote-copy/)               | Copy a quoted or fenced block from the last response as raw Markdown                    |
+| [`pi-slack-user`](pi-slack-user/)               | Read Slack permalinks and post confirmed replies with a user OAuth token                |
+| [`pi-system-theme`](pi-system-theme/)           | Sync Pi theme with macOS dark/light mode and configurable theme names                   |
+| [`pi-web`](pi-web/)                             | Web search (Exa, Brave, Claude, Codex, Google) and page fetching                        |
+| [`plan-mode`](plan-mode/)                       | Read-only plan mode with progress tracking and questionnaire support                    |
+| [`pi-verbosity-control`](pi-verbosity-control/) | Per-model OpenAI verbosity overrides with a keyboard toggle                             |
+| [`tank`](tank/)                                 | `/tank` board of every live Pi session, messages between them, and Tank, the meta agent |
 
 Each extension folder contains full usage details and examples.
 

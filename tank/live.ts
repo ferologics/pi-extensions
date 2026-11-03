@@ -23,6 +23,8 @@ export interface LiveSession {
     statusDetail?: string;
     priority?: Priority;
     recap?: { text: string; at: string };
+    /** This session runs in Tank's home: it is Tank. */
+    tank?: true;
     model?: string;
     startedAt: string;
     updatedAt: string;
@@ -93,4 +95,23 @@ export function listLive(dir: string): LiveSession[] {
         } catch {}
     }
     return sessions;
+}
+
+function listLine(session: LiveSession): string {
+    return `- ${session.sessionId} · ${session.project.name} · "${session.label}" · ${session.status}`;
+}
+
+/** A session by id, id prefix, exact label or unique label substring. */
+export function resolveTarget(sessions: LiveSession[], target: string): LiveSession | string {
+    const wanted = target.trim().toLowerCase();
+    const byId = sessions.filter((session) => session.sessionId === wanted || session.sessionId.startsWith(wanted));
+    if (byId.length === 1 && wanted.length >= 8) return byId[0]!;
+    const exact = sessions.filter((session) => session.label.toLowerCase() === wanted);
+    if (exact.length === 1) return exact[0]!;
+    const partial = sessions.filter((session) => session.label.toLowerCase().includes(wanted));
+    if (partial.length === 1 && exact.length === 0) return partial[0]!;
+    const list = sessions.length > 0 ? sessions.map(listLine).join("\n") : "(none)";
+    const problem =
+        exact.length > 1 || partial.length > 1 ? "matches more than one session" : "matches no live session";
+    return `"${target}" ${problem}. Live sessions:\n${list}`;
 }

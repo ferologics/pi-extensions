@@ -2,7 +2,7 @@
 
 One board for every Pi session you have open. Each interactive Pi session publishes what it is doing; `/tank` in any session shows them all, grouped the way you group them (Ghostty windows), with what each one is about and whether it needs you. Enter jumps to the session's terminal.
 
-This is the first slice of Tank, a meta agent for running many sessions in parallel. See [VISION.md](VISION.md) and [TODO.md](TODO.md) for where it goes.
+It also gives you Tank, one persistent meta agent who sees all of those sessions: you talk to him about what is going on across your work and what to focus on next. See [VISION.md](VISION.md) and [TODO.md](TODO.md) for where it goes.
 
 ## The board
 
@@ -72,6 +72,34 @@ Each session also listens on `~/.local/state/pi/live/<pid>.sock` (only your user
 Replies are `{"ok":true,"data":…}` or `{"ok":false,"error":"…"}`.
 
 Every session has one tool for it, `send_to_session`: target a session by id or label; an unknown or ambiguous target returns the live sessions. After 3 messages in a row with no input from you, further messages are shown but neither start nor continue a run, so two sessions can't keep each other busy.
+
+## Tank
+
+Tank is a Pi session started in his home: a directory with the marker `.pi/tank.json`. Sessions anywhere else stay ordinary sessions and never get his tools.
+
+Set up his home once from the starter in this package, as its own git repo:
+
+```bash
+cp -R <this package>/extensions/tank/home ~/dev/tank
+cd ~/dev/tank && git init && git add -A && git commit -m "Tank's home"
+pi
+```
+
+- `AGENTS.md` is his prompt: what he is and what he has. Change it as you like.
+- `NOTES.md` is in his prompt on every turn as `<notes>`: Directives, Priorities and Follow-ups as dated bullets, replaced in place, under 4000 characters. Topic notes go in `topics/<name>.md`, which he reads when needed.
+- `.pi/tank.json` marks the home. `{ "notes": false }` turns his notes off: no notes section, no `tank_notes`.
+
+His tools, besides `send_to_session`:
+
+| Tool            | What it does                                                                                    |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| `tank_sessions` | Every live session by Ghostty window and tab: id, project, label, status, priority, recap, file |
+| `tank_read`     | The end of a session's transcript; older history is in its session file                         |
+| `tank_priority` | Set a session's priority (p0–p3) or clear it                                                    |
+| `tank_focus`    | Bring a session's terminal to the front                                                         |
+| `tank_notes`    | Replace `NOTES.md` or a topic note: you see the diff, and an accepted edit is one git commit    |
+
+A changed notes section reaches his prompt as a patch. On models that take mid-conversation system messages (Opus 5.5 and GPT-6 in Pi's catalog) the cached prompt survives it; on others Pi rebuilds the prompt.
 
 ## Requirements
 

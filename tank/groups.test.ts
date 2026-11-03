@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { describeSessions } from "./agent.js";
 import { groupSessions } from "./groups.js";
-import { resolveTarget } from "./index.js";
-import type { LiveSession, Priority } from "./live.js";
+import { type LiveSession, type Priority, resolveTarget } from "./live.js";
 import { currentBranch, tailParts } from "./peek.js";
 import { promptLabel } from "./reporter.js";
 
@@ -157,5 +157,40 @@ describe("promptLabel", () => {
         );
         expect(promptLabel(file)).toBe("slice-1-brief.md");
         expect(promptLabel("fix the login test\nmore")).toBe("fix the login test");
+    });
+});
+
+describe("describeSessions", () => {
+    it("lists sessions by window front to back with their tab, then the ones outside Ghostty", () => {
+        const now = Date.parse("2026-10-28T10:05:00.000Z");
+        const listed = describeSessions(
+            [
+                session(1, {
+                    terminalId: "t1",
+                    label: "fix login",
+                    priority: 0,
+                    recap: { text: "Fixing it.", at: "" },
+                }),
+                session(2, { terminalId: "t2", tank: true }),
+                session(3, { label: "in tmux" }),
+            ],
+            [
+                { id: "w1", tabs: [["t2"]] },
+                { id: "w2", tabs: [["x"], ["t1"]] },
+            ],
+            now,
+        );
+        expect(listed.split("\n")).toEqual([
+            "Window 1 (front):",
+            '- 00000002-aaaa-bbbb-cccc-dddddddddddd · pi-shit · "session 2" · idle 5m · this is you · tab 1',
+            "  cwd: /repo/pi-shit · model: unknown · file: (not saved yet)",
+            "Window 2:",
+            '- 00000001-aaaa-bbbb-cccc-dddddddddddd · pi-shit · "fix login" · idle 5m · p0 · tab 2',
+            "  recap: Fixing it.",
+            "  cwd: /repo/pi-shit · model: unknown · file: (not saved yet)",
+            "Not in a Ghostty window:",
+            '- 00000003-aaaa-bbbb-cccc-dddddddddddd · pi-shit · "in tmux" · idle 5m',
+            "  cwd: /repo/pi-shit · model: unknown · file: (not saved yet)",
+        ]);
     });
 });

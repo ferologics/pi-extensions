@@ -9,6 +9,7 @@ import { FOCUS_DISABLE, FOCUS_ENABLE, FocusParser } from "./focus.js";
 import { lookupTerminalId } from "./ghostty.js";
 import { type LiveSession, liveDir, type Priority, removeLive, socketPath, writeLive } from "./live.js";
 import { type Project, projectOf } from "./project.js";
+import { isTankHome } from "./home.js";
 import { MESSAGE_HEADER, MESSAGE_TYPE, messageContent } from "./message.js";
 import { close, listen, type Request, type Response } from "./socket.js";
 import { StatusTracker } from "./status.js";
@@ -259,6 +260,7 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
             project: { key: cwd, name: cwd.split("/").pop() || cwd },
             label: "",
             model: startCtx.model ? `${startCtx.model.provider}/${startCtx.model.id}` : undefined,
+            ...(isTankHome(cwd) ? { tank: true as const } : {}),
             startedAt: now,
         };
         readSession();

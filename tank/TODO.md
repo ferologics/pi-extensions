@@ -27,12 +27,13 @@ Done when you can open the board and see your real sessions with correct statuse
 
 ## Slice 2: Tank
 
-- [ ] His directory: `AGENTS.md`, notes, `.pi/settings.json` loading his extension. The package ships a starter directory.
-- [ ] Tools: list sessions and windows, read a session, focus a terminal, message a session, set priority.
-- [ ] Talk to him from the board: an input line, with the session you are in as "this". Find out how much of a session an overlay can host (`/btw` runs a side session with its own small UI).
-- [ ] Notes: our own, shaped like pi-mem: a long-term notes file, a scratchpad, a daily log, topic notes read on demand. Load a snapshot at session start and don't change the system prompt mid-session (keeps the prompt cache). Every write is a small git commit, so history and rollback come free. Edits happen when you ask or when you accept his proposal (Prime Agent's `/refine`, without the automation).
-- [ ] Notes don't rot: hold only what can't be read from sessions (priorities, plans, decisions); on load, check them against live sessions and propose deletions.
-- [ ] Regroup windows on request: propose a grouping from paths, labels and recaps; apply it by resuming each moved session in a new tab of the target window, then closing the old tab (Ghostty's AppleScript can't move tabs between windows). Idle sessions only.
+- [x] His home: a directory with `AGENTS.md`, `NOTES.md` and the marker `.pi/tank.json`; a Pi session started there is Tank. The package ships a starter (`home/`); yours is `~/dev/tank`.
+- [x] Tools: `tank_sessions` (by window and tab), `tank_read` (transcript tail), `tank_priority`, `tank_focus`; `send_to_session` for messages.
+- [x] Notes: `NOTES.md` (Directives, Priorities, Follow-ups; dated, replaced in place, under 4000 characters) as a prompt section, `topics/*.md` read when needed, no daily log. `tank_notes` is the only write path: you accept the diff, one git commit. `"notes": false` in `.pi/tank.json` turns them off.
+- [ ] Hyper+A: Tank's window from any app; starts him (`pi -c` in his home) when he isn't running; pressed again in Tank, back to where you were.
+- [ ] Regroup windows on request: he proposes a grouping from paths, labels and recaps, you approve the whole plan once, and he applies it by resuming each moved session in a new tab of the target window, then closing the old tab (Ghostty's AppleScript can't move tabs between windows). Idle sessions only; needs a `quit` request on the session socket.
+- [ ] Research notes: Tank with notes on and off; whether they rot; cache reads on a real notes edit. Per Pi's model catalog, Opus 5.5 and GPT-6 take mid-conversation system messages, so an edited notes section goes out as a patch and the cached prompt stays; Haiku 4.5 rebuilds the prompt. Not measured yet.
+- [ ] Subagents Tank starts run in his home, so they become Tank too: his tools, including `tank_notes`. Decide whether they should. If not, they stay ordinary sessions, the way subagents already stay off the board.
 - [ ] Papercuts: capture a friction note in the moment; review them with Tank.
 
 ## Duck
@@ -65,5 +66,6 @@ Where the ideal is ahead of what we build now.
 - [ ] Overnight papercut fixes: small, high-confidence changes that land as diffs for review.
 - [ ] Tank talking to Ducks instead of main sessions.
 - [ ] Linux window layer; remote sessions.
+- [ ] One Tank across machines: find a running one and connect to it, or start a local one; keep his notes and artifacts in sync (a git remote for his home is the first step).
 - [ ] Rex window layer in place of Ghostty: see "Later: move from Ghostty to Rex" in `../TODO.md`.
 - [ ] Move pi-subagent's parent-to-child messaging onto the shared mechanism (fork or upstream change), so subagents, Ducks and Tank all use one. See the shared live-session layer proposal in `../TODO.md`.

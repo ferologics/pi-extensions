@@ -48,12 +48,12 @@ function toolCallLine(name: string, args: unknown): string {
 }
 
 /** Markdown blocks for the end of a session: its last few user turns with replies and tool calls. */
-export function tailParts(branch: SessionEntry[]): string[] {
+export function tailParts(branch: SessionEntry[], userTurns = USER_TURNS): string[] {
     let start = 0;
     let turns = 0;
     for (let index = branch.length - 1; index >= 0; index--) {
         const entry = branch[index]!;
-        if (entry.type === "message" && entry.message.role === "user" && ++turns === USER_TURNS) {
+        if (entry.type === "message" && entry.message.role === "user" && ++turns === userTurns) {
             start = index;
             break;
         }
@@ -121,12 +121,13 @@ function userTurns(branch: SessionEntry[]): number {
     return branch.filter((entry) => entry.type === "message" && entry.message.role === "user").length;
 }
 
-export async function readTail(sessionFile: string): Promise<string[]> {
+/** The last `turns` user turns of a session file, reading only as much of its end as that takes. */
+export async function readTail(sessionFile: string, turns = USER_TURNS): Promise<string[]> {
     for (let bytes = TAIL_BYTES; ; bytes *= 4) {
         const { entries, whole } = await readEntries(sessionFile, bytes);
         const branch = currentBranch(entries);
-        if (whole || userTurns(branch) >= USER_TURNS) {
-            const parts = tailParts(branch);
+        if (whole || userTurns(branch) >= turns) {
+            const parts = tailParts(branch, turns);
             return parts.length > 0 ? parts : ["*(nothing yet)*"];
         }
     }
