@@ -116,3 +116,82 @@ describe("Board peek", () => {
         expect(board.render(120).join("\n")).toContain("osascript timed out");
     });
 });
+
+/** A theme that draws every token as its own invisible color code, so a test can tell which token drew what. */
+const TOKENS = [
+    "accent",
+    "border",
+    "borderAccent",
+    "borderMuted",
+    "dim",
+    "muted",
+    "success",
+    "warning",
+    "error",
+    "text",
+];
+const fgCode = (token: string) => `\x1b[38;5;${TOKENS.indexOf(token) + 1}m`;
+const bgCode = (token: string) => `\x1b[48;5;${token.length}m`;
+const taggingTheme = {
+    fg: (token: string, text: string) => `${fgCode(token)}${text}\x1b[39m`,
+    bg: (token: string, text: string) => `${bgCode(token)}${text}\x1b[49m`,
+    bold: (text: string) => text,
+};
+
+describe("Board colors", () => {
+    let dir: string;
+    const others: ChildProcess[] = [];
+    let board: Board;
+
+    beforeEach(async () => {
+        vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+        dir = mkdtempSync(join(tmpdir(), "dude-colors-"));
+        const statuses = ["needs-you", "unseen", "working"] as const;
+        for (const [index, status] of statuses.entries()) {
+            const process = spawn("sleep", ["60"]);
+            others.push(process);
+            writeLive(dir, {
+                ...live(process.pid!, "app", ""),
+                status,
+                startedAt: `2026-10-28T10:00:0${index + 1}.000Z`,
+            });
+        }
+        writeLive(dir, {
+            ...live(process.pid, "app", ""),
+            label: "the label",
+            recap: { text: "the recap", at: "2026-10-28T10:00:00.000Z" },
+            startedAt: "2026-10-28T10:00:00.000Z",
+        });
+        board = new Board(tui, taggingTheme as unknown as Theme, dir, () => {});
+        await settle();
+    });
+
+    afterEach(() => {
+        board.dispose();
+        for (const other of others.splice(0)) other.kill();
+        vi.useRealTimers();
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("marks only the selected card, with an accent border and a selected background", () => {
+        const screen = board.render(160).join("\n");
+        // A card's corner closes its color right away; the board's frame runs on into its top line.
+        const corners = (token: string) => screen.split(`${fgCode(token)}╭\x1b[39m`).length - 1;
+        expect(corners("borderAccent")).toBe(1);
+        expect(corners("borderMuted")).toBe(3);
+        expect(screen.split(bgCode("selectedBg")).length - 1).toBe(4);
+    });
+
+    it("gives each status its own color and dims what is neither status nor recap", () => {
+        const screen = board.render(160).join("\n");
+        expect(screen).toContain(`${fgCode("error")}! needs you`);
+        expect(screen).toContain(`${fgCode("success")}● done`);
+        expect(screen).toContain(`${fgCode("warning")}◐ working`);
+        expect(screen).toContain(`${fgCode("muted")}○ idle`);
+        expect(screen).toContain(`${fgCode("dim")}the label`);
+        expect(screen).toContain(`${fgCode("dim")}app`);
+        expect(screen).toContain("the recap");
+        expect(screen).not.toContain(`${fgCode("dim")}the recap`);
+        expect(screen).not.toContain(`${fgCode("muted")}the recap`);
+    });
+});

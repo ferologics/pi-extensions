@@ -24,12 +24,14 @@ const CARD_MIN_WIDTH = 38;
 const CARD_HEIGHT = 6;
 const GAP = 1;
 
-const STATUS_LOOK: Record<Status, { glyph: string; label: string; color: "error" | "success" | "warning" | "dim" }> = {
-    "needs-you": { glyph: "!", label: "needs you", color: "error" },
-    unseen: { glyph: "●", label: "done", color: "success" },
-    working: { glyph: "◐", label: "working", color: "warning" },
-    idle: { glyph: "○", label: "idle", color: "dim" },
-};
+// Status and recap are what you read on the board, so they alone get color and full strength; everything else is dim.
+const STATUS_LOOK: Record<Status, { glyph: string; label: string; color: "error" | "success" | "warning" | "muted" }> =
+    {
+        "needs-you": { glyph: "!", label: "needs you", color: "error" },
+        unseen: { glyph: "●", label: "done", color: "success" },
+        working: { glyph: "◐", label: "working", color: "warning" },
+        idle: { glyph: "○", label: "idle", color: "muted" },
+    };
 
 export function ago(iso: string, now = Date.now()): string {
     const seconds = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
@@ -251,23 +253,24 @@ export class Board implements Component {
     private card(session: LiveSession, width: number, selected: boolean): string[] {
         const th = this.theme;
         const look = STATUS_LOOK[session.status];
-        const edge = (text: string) => (selected ? th.fg("accent", text) : th.fg("border", text));
+        const edge = (text: string) => th.fg(selected ? "borderAccent" : "borderMuted", text);
+        const background = (text: string) => (selected ? th.bg("selectedBg", text) : text);
         const inner = width - 4;
         const header = ` ${th.fg(look.color, `${look.glyph} ${look.label}`)} ${th.fg("dim", ago(session.statusSince))} `;
-        const priority = session.priority === undefined ? "" : ` ${th.fg("accent", `p${session.priority}`)} `;
+        const priority = session.priority === undefined ? "" : ` ${th.fg("dim", `p${session.priority}`)} `;
         const fill = Math.max(0, width - 2 - visibleWidth(header) - visibleWidth(priority));
         const top = edge("╭") + header + edge("─".repeat(fill)) + priority + edge("╮");
         const row = (text: string) => {
             const clipped = truncateToWidth(text, inner);
-            return `${edge("│")} ${clipped}${" ".repeat(Math.max(0, inner - visibleWidth(clipped)))} ${edge("│")}`;
+            return `${edge("│")}${background(` ${clipped}${" ".repeat(Math.max(0, inner - visibleWidth(clipped)))} `)}${edge("│")}`;
         };
-        const here = session.pid === process.pid ? th.fg("accent", " · here") : "";
+        const here = session.pid === process.pid ? " · here" : "";
         const body: string[] = [
-            th.fg("muted", session.project.name) + here,
-            th.bold(session.label || th.fg("dim", "(new session)")),
+            th.fg("dim", session.project.name + here),
+            th.fg("dim", session.label || "(new session)"),
         ];
         if (session.statusDetail) body.push(th.fg(look.color, session.statusDetail));
-        if (session.recap) body.push(...wrapTextWithAnsi(th.fg("dim", session.recap.text), inner));
+        if (session.recap) body.push(...wrapTextWithAnsi(session.recap.text, inner));
         const lines = body.slice(0, CARD_HEIGHT - 2);
         while (lines.length < CARD_HEIGHT - 2) lines.push("");
         return [top, ...lines.map(row), edge(`╰${"─".repeat(width - 2)}╯`)];
@@ -284,8 +287,8 @@ export class Board implements Component {
             lines.push(th.fg("dim", "No live Pi sessions. Sessions show up here once they run with the-dude loaded."));
         }
         for (const group of this.groups) {
-            const priority = group.priority === undefined ? "" : th.fg("accent", ` p${group.priority}`);
-            lines.push(th.fg("accent", th.bold(group.title)) + priority + th.fg("dim", ` · ${group.sessions.length}`));
+            const priority = group.priority === undefined ? "" : ` p${group.priority}`;
+            lines.push(th.fg("dim", `${th.bold(group.title)}${priority} · ${group.sessions.length}`));
             for (let start = 0; start < group.sessions.length; start += columns) {
                 const cards = group.sessions.slice(start, start + columns).map((session) => {
                     if (session.pid === this.selectedPid) selectedTop = lines.length;
@@ -306,12 +309,12 @@ export class Board implements Component {
         if (!session) return [th.fg("dim", "This session ended.")];
         const look = STATUS_LOOK[session.status];
         const lines = [
-            `${th.bold(session.label || "(new session)")} ${th.fg(look.color, `${look.glyph} ${look.label}`)} ${th.fg("dim", ago(session.statusSince))}`,
+            `${th.fg(look.color, `${look.glyph} ${look.label}`)} ${th.fg("dim", `${ago(session.statusSince)} · ${session.label || "(new session)"}`)}`,
             th.fg("dim", [session.project.name, session.model, session.cwd].filter(Boolean).join(" · ")),
         ];
         if (session.statusDetail) lines.push(th.fg(look.color, session.statusDetail));
-        if (session.recap) lines.push("", ...wrapTextWithAnsi(th.fg("muted", `✦ ${session.recap.text}`), inner));
-        lines.push(th.fg("border", "─".repeat(inner)));
+        if (session.recap) lines.push("", ...wrapTextWithAnsi(`✦ ${session.recap.text}`, inner));
+        lines.push(th.fg("borderMuted", "─".repeat(inner)));
         for (const part of peek.parts) {
             lines.push("", ...new Markdown(part, 0, 0, getMarkdownTheme()).render(inner).map((line) => line.trimEnd()));
         }
@@ -347,18 +350,18 @@ export class Board implements Component {
             .map((status) => th.fg(STATUS_LOOK[status].color, `${counts[status]} ${STATUS_LOOK[status].label}`))
             .join(th.fg("dim", " · "));
         const layoutError = this.layoutError ? th.fg("error", `  · ${this.layoutError}`) : "";
-        const title = ` ${th.fg("accent", th.bold("dude"))}  ${summary}${layoutError}${this.flash ? th.fg("dim", `  · ${this.flash}`) : ""}`;
+        const title = ` ${th.fg("dim", th.bold("dude"))}  ${summary}${layoutError}${this.flash ? th.fg("dim", `  · ${this.flash}`) : ""}`;
         const row = (content: string) => {
             const clipped = truncateToWidth(content, inner);
-            return `${th.fg("border", "│")} ${clipped}${" ".repeat(Math.max(0, inner - visibleWidth(clipped)))} ${th.fg("border", "│")}`;
+            return `${th.fg("borderMuted", "│")} ${clipped}${" ".repeat(Math.max(0, inner - visibleWidth(clipped)))} ${th.fg("borderMuted", "│")}`;
         };
         return [
-            th.fg("border", `╭${"─".repeat(inner + 2)}╮`),
+            th.fg("borderMuted", `╭${"─".repeat(inner + 2)}╮`),
             row(title),
             ...lines.map(row),
             ...Array.from({ length: Math.max(0, height - lines.length) }, () => row("")),
             row(th.fg("dim", hint)),
-            th.fg("border", `╰${"─".repeat(inner + 2)}╯`),
+            th.fg("borderMuted", `╰${"─".repeat(inner + 2)}╯`),
         ];
     }
 
