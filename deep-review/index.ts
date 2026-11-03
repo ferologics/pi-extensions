@@ -141,10 +141,10 @@ A query is required, either as positional text or via \`--query\`.
 - \`--context-pack <path>\`  Skip context-pack generation and use an existing pack file
 - \`--budget <tokens>\`      Override the auto-sized context-pack budget target (example: \`180000\`; cannot combine with \`--context-pack\`)
 - \`--provider <name>\`      \`openai-codex|openai\` (default: \`openai-codex\`)
-- \`--model <id>\`           Responses model (default: \`gpt-5.6-sol\`)
-  - Common ids: \`gpt-5.6-sol\`, \`gpt-5.6-terra\`, \`gpt-5.6-luna\`, \`gpt-5.5\`, \`gpt-5.5-pro\`
-- \`--effort <level>\`       \`minimal|low|medium|high|xhigh|max\` (default: \`max\` on GPT-5.6, otherwise \`xhigh\`)
-- \`--mode <mode>\`          \`standard|pro\` (OpenAI Platform GPT-5.6 only; default there: \`pro\`)
+- \`--model <id>\`           Responses model (default: \`gpt-6.1-sol\`)
+  - Common ids: \`gpt-6.1-sol\`, \`gpt-5.6-sol\`, \`gpt-5.6-terra\`, \`gpt-5.6-luna\`, \`gpt-5.5\`, \`gpt-5.5-pro\`
+- \`--effort <level>\`       \`minimal|low|medium|high|xhigh|max\` (default: \`max\` on GPT-5.6 and GPT-6.1 Sol, otherwise \`xhigh\`)
+- \`--mode <mode>\`          \`standard|pro\` (OpenAI Platform GPT-5.6 and GPT-6.1 Sol only; default there: \`pro\`)
 - \`--verbosity <level>\`    \`low|medium|high\` (default: \`high\` in pro mode/on pro models, otherwise \`medium\`)
 - \`--summary <mode>\`       \`auto|detailed|null\` (default: \`auto\`)
 - \`--no-summary\`           Shortcut for \`--summary null\`
@@ -159,7 +159,7 @@ Use \`--provider <name>\` and \`--model <id>\`, for example:
 
 - \`/deep-review "review this"\`
 - \`/deep-review "review this" --model gpt-5.6-terra\`
-- \`/deep-review "review this" --provider openai\` (GPT-5.6 Sol, pro mode, 1.05M context)
+- \`/deep-review "review this" --provider openai\` (GPT-6.1 Sol, pro mode, API billing)
 
 Model availability depends on the OpenAI account / token backing the request.
 
@@ -170,7 +170,8 @@ Model availability depends on the OpenAI account / token backing the request.
 ## Requirement
 
 - By default, authenticate with \`/login openai-codex\` (ChatGPT Plus/Pro). Use \`--provider openai\` with \`OPENAI_API_KEY\` for Platform.
-- The Codex GPT-5.6 route uses its registered 372K context window. Direct OpenAI GPT-5.6 opts into the official 1.05M window and long-context pricing above 272K input tokens.
+- GPT-6.1 Sol budgets against its 1.05M context window on both routes. Codex subscription usage has no long-context surcharge; direct OpenAI requests above 272K input tokens use long-context pricing.
+- The Codex GPT-5.6 route uses Pi's registered context window. Direct OpenAI GPT-5.6 opts into the official 1.05M window.
 - \`tokencount\` must be installed and available in \`PATH\`.
 - If \`--context-pack <path>\` is provided, deep-review uses that file directly and skips pack generation.
 `;
@@ -181,7 +182,7 @@ const WIDGET_TICK_MS = 250;
 const SPINNER_FRAME_MS = 100;
 const MARKDOWN_THEME = getMarkdownTheme();
 const DEFAULT_DEEP_REVIEW_PROVIDER: DeepReviewProvider = "openai-codex";
-const DEFAULT_DEEP_REVIEW_MODEL = "gpt-5.6-sol";
+const DEFAULT_DEEP_REVIEW_MODEL = "gpt-6.1-sol";
 const DEEP_REVIEW_INSTRUCTIONS = [
     "You are a meticulous senior code reviewer.",
     "Use the supplied context pack as the source of truth, then answer the user's review request.",
@@ -189,7 +190,8 @@ const DEEP_REVIEW_INSTRUCTIONS = [
     "Call out uncertainty and omitted coverage explicitly instead of pretending the review is exhaustive.",
 ].join("\n");
 const HIGH_VERBOSITY_MODEL_IDS = new Set(["gpt-5.4-pro", "gpt-5.5-pro"]);
-const GPT_5_6_MODEL_IDS = new Set(["gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra"]);
+// Models that default to max effort and support `reasoning.mode` on the OpenAI Platform route.
+const PRO_MODE_MODEL_IDS = new Set(["gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6.1-sol"]);
 const OPENAI_RESPONSES_BASE_URL = "https://api.openai.com/v1";
 const OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 const CHATGPT_ACCOUNT_ID_CLAIM = "https://api.openai.com/auth";
@@ -438,12 +440,12 @@ function normalizeDeepReviewModelId(modelId: string): string {
     return normalized.slice(normalized.lastIndexOf("/") + 1);
 }
 
-function isGpt56Model(modelId: string): boolean {
-    return GPT_5_6_MODEL_IDS.has(normalizeDeepReviewModelId(modelId));
+function isProModeModel(modelId: string): boolean {
+    return PRO_MODE_MODEL_IDS.has(normalizeDeepReviewModelId(modelId));
 }
 
 function defaultEffortForModel(modelId: string): ReasoningEffort {
-    return isGpt56Model(modelId) ? "max" : "xhigh";
+    return isProModeModel(modelId) ? "max" : "xhigh";
 }
 
 function defaultVerbosityForOptions(options: Pick<DeepReviewOptions, "model" | "reasoningMode">): TextVerbosity {
@@ -637,14 +639,14 @@ export function parseOptions(rawArgs: string, cwd: string): ParseResult {
         options.effort = defaultEffortForModel(options.model);
     }
 
-    if (options.reasoningMode && (options.provider !== "openai" || !isGpt56Model(options.model))) {
+    if (options.reasoningMode && (options.provider !== "openai" || !isProModeModel(options.model))) {
         return {
             ok: false,
-            message: "--mode is only supported with --provider openai and a GPT-5.6 model.",
+            message: "--mode is only supported with --provider openai and a GPT-5.6 or GPT-6.1 Sol model.",
         };
     }
 
-    if (options.provider === "openai" && isGpt56Model(options.model) && !options.reasoningMode) {
+    if (options.provider === "openai" && isProModeModel(options.model) && !options.reasoningMode) {
         options.reasoningMode = "pro";
     }
 
@@ -1456,12 +1458,16 @@ const DEFAULT_CONTEXT_PACK_BUDGET = 272000;
 const CONTEXT_PACK_INPUT_FRACTION = 0.75;
 const CONTEXT_PACK_MIN_BUDGET = 4096;
 const CONTEXT_PACK_OVERHEAD_RESERVE = 12000;
+// GPT-6.1 Sol's context window is 1.05M (922K max input). Pi registers the Codex route at its
+// 500K default, but subscription requests may use up to 1M with no long-context surcharge.
 const CONTEXT_PACK_CONTEXT_WINDOW_FLOORS: Partial<Record<string, number>> = {
     "openai-codex/gpt-5.4": 1050000,
+    "openai-codex/gpt-6.1-sol": 1050000,
     "openai/gpt-5.4": 1050000,
     "openai/gpt-5.6-luna": 1050000,
     "openai/gpt-5.6-sol": 1050000,
     "openai/gpt-5.6-terra": 1050000,
+    "openai/gpt-6.1-sol": 1050000,
 };
 
 function estimateQueryReserveTokens(query: string): number {

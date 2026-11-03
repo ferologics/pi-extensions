@@ -173,21 +173,21 @@ describe("parseOptions", () => {
         expect(parsed.message).toContain("both positionally and via --query");
     });
 
-    it("defaults to openai-codex GPT-5.6 Sol on max", () => {
+    it("defaults to openai-codex GPT-6.1 Sol on max", () => {
         const parsed = parseOptions('"review this"', "/tmp");
         expect(parsed.ok).toBe(true);
         expect(parsed.options?.provider).toBe("openai-codex");
-        expect(parsed.options?.model).toBe("gpt-5.6-sol");
+        expect(parsed.options?.model).toBe("gpt-6.1-sol");
         expect(parsed.options?.effort).toBe("max");
         expect(parsed.options?.reasoningMode).toBeUndefined();
         expect(parsed.options?.verbosity).toBe("medium");
     });
 
-    it("defaults the OpenAI Platform GPT-5.6 route to pro mode and high verbosity", () => {
+    it("defaults the OpenAI Platform GPT-6.1 Sol route to pro mode and high verbosity", () => {
         const parsed = parseOptions('"review this" --provider openai', "/tmp");
         expect(parsed.ok).toBe(true);
         expect(parsed.options?.provider).toBe("openai");
-        expect(parsed.options?.model).toBe("gpt-5.6-sol");
+        expect(parsed.options?.model).toBe("gpt-6.1-sol");
         expect(parsed.options?.effort).toBe("max");
         expect(parsed.options?.reasoningMode).toBe("pro");
         expect(parsed.options?.verbosity).toBe("high");
@@ -349,6 +349,23 @@ describe("buildContextPackBudgetPlan", () => {
         expect(plan.modelContextWindow).toBe(1050000);
         expect(plan.modelHardInputBudget).toBe(922000);
         expect(plan.modelRatioInputBudget).toBe(787500);
+        expect(plan.requestedBudget).toBe(787500);
+        expect(plan.finalBudget).toBe(773452);
+    });
+
+    it("budgets GPT-6.1 Sol on the Codex route against its 1.05M context window", () => {
+        const plan = buildContextPackBudgetPlan(
+            { query: "review", model: "gpt-6.1-sol" },
+            {
+                provider: "openai-codex",
+                id: "gpt-6.1-sol",
+                contextWindow: 500000,
+                maxTokens: 128000,
+            },
+        );
+
+        expect(plan.modelContextWindow).toBe(1050000);
+        expect(plan.modelHardInputBudget).toBe(922000);
         expect(plan.requestedBudget).toBe(787500);
         expect(plan.finalBudget).toBe(773452);
     });

@@ -44,8 +44,8 @@ sequenceDiagram
 
 ## Response routing
 
-- Default route: `openai-codex/gpt-5.6-sol` with `max` reasoning via `https://chatgpt.com/backend-api/codex/responses`. It keeps the Codex backend's registered 372K context window.
-- Platform route: pass `--provider openai` to use `openai/gpt-5.6-sol` with `reasoning.mode: "pro"`, `max` effort, the official 1.05M context window, and `OPENAI_API_KEY` / OpenAI Platform auth.
+- Default route: `openai-codex/gpt-6.1-sol` with `max` reasoning via `https://chatgpt.com/backend-api/codex/responses`, budgeted against the 1.05M context window.
+- Platform route: pass `--provider openai` to use `openai/gpt-6.1-sol` with `reasoning.mode: "pro"`, `max` effort, the official 1.05M context window, and `OPENAI_API_KEY` / OpenAI Platform auth.
 - Request metadata records provider, endpoint, and auth source in debug events, final report, and handoff metadata.
 
 ---
@@ -182,11 +182,12 @@ Note: related overlap with changed files is de-duplicated and not counted as rel
    - Manual `--budget` overrides are capped by the selected model's hard input limit when model metadata is available.
    - This prevents expensive context-pack generation from producing a request the provider rejects for context length.
 
-6. **Provider-specific GPT-5.6 context**
+6. **Provider-specific GPT-5.6 / GPT-6.1 Sol context**
 
-   - Codex subscription GPT-5.6 keeps Pi's registered 372K context window.
+   - Codex subscription GPT-5.6 keeps Pi's registered context window.
+   - GPT-6.1 Sol opts into its official 1.05M context window on both routes. Pi registers the Codex route at Codex's 500K default, but OpenAI allows subscription requests up to 1M and charges no long-context surcharge on them; large core diffs (for example ~450K-token handler files) only fit above 500K.
    - Direct OpenAI GPT-5.6 explicitly opts into the official 1.05M context window and long-context pricing tier.
-   - Direct OpenAI GPT-5.6 defaults to pro reasoning mode; the Codex route does not send `reasoning.mode`.
+   - Direct OpenAI GPT-5.6 and GPT-6.1 Sol default to pro reasoning mode; the Codex route does not send `reasoning.mode`.
 
 7. **Recall-first selection policy**
    - Prefer broad recall and explicit budget trimming over early bounded graph pruning.
