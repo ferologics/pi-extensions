@@ -22,6 +22,9 @@ Done when you can open the board and see your real sessions with correct statuse
 - [x] `/tank` board overlay in any session: grouped by Ghostty window, windows sorted by priority; cards with status, project, label and recap; space peeks the transcript tail, Enter focuses the terminal, `p` sets p0–p3 (saved in the session, survives restore).
 - [ ] Check on your real sessions in Ghostty: window grouping, Enter, done but unseen from real focus changes. Tested so far in tmux with injected focus reports, plus terminal lookup and focus on one Ghostty terminal.
 - [ ] Keep status across `/reload` (it starts over today, so a failed or unseen session reads idle after a reload).
+- [ ] An abort drops queued session messages. Pi's abort clears the agent's queues and returns only what you typed to the editor, so a `send_to_session` message queued as a follow-up or steer vanishes, while its sender was already told "queued as a follow-up". Keep it (for example appended without starting a run) and tell the sender.
+- [ ] Show queued session messages: nothing shows a message waiting as a follow-up or steer. Show `✉ 1 queued from <sender>` above the editor until it is delivered.
+- [ ] Labels from prompts that start with an attached file read `<file name="…">`, because the label is the first line of the first prompt. Skip `<file>` blocks. (A `/name` already wins.)
 
 ## Slice 2: Tank
 
