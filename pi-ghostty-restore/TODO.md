@@ -12,7 +12,7 @@ Current dotfiles pieces:
 ## Decide first
 
 - [ ] Publish it, or keep it in the dotfiles? The dotfiles copy is the source of truth until this is decided.
-- [ ] Check alternatives before building: does any Ghostty or Pi feature, Rex/SuperLogical or Tern already cover "resume the Pi session that was in this tab"?
+- [ ] Check alternatives before building: does any Ghostty or Pi feature, Rex/SuperLogical or Tern already cover "resume the Pi session that was in this tab"? Rex mostly does: quitting its app leaves Pi running, and only a reboot needs a resume. See "Later: move from Ghostty to Rex" in `../TODO.md`.
 - [ ] Name: `pi-ghostty-restore` (matches `pi-ghostty-hunk` / `pi-ghostty-lazygit`)
 
 ## Design questions

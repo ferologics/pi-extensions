@@ -63,4 +63,5 @@ Where the ideal is ahead of what we build now.
 - [ ] Overnight papercut fixes: small, high-confidence changes that land as diffs for review.
 - [ ] The Dude talking to Ducks instead of main sessions.
 - [ ] Linux window layer; remote sessions.
+- [ ] Rex window layer in place of Ghostty: see "Later: move from Ghostty to Rex" in `../TODO.md`.
 - [ ] Move pi-subagent's parent-to-child messaging onto the shared mechanism (fork or upstream change), so subagents, Ducks and The Dude all use one. See the shared live-session layer proposal in `../TODO.md`.

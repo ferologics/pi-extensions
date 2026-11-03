@@ -44,6 +44,28 @@ Parked:
   - The initiating session reports from the runtime the reload creates: the old ctx is stale, the chat is rebuilt, and an info notify collapses into Pi's own "Reloaded …" status line.
   - Sessions running code without the request answer `unknown request`, so the first rollout needs one manual `/reload` each.
 
+## Later: move from Ghostty to Rex
+
+Status: parked, transition later. Rex (Superlogical's terminal multiplexer on libghostty, macOS app in beta) would replace most of our Ghostty-specific code. The concepts carry over; only the window layer changes.
+
+Checked in November 2026 (Rex 0.0.1793299046, Pi 1.4.0):
+
+- The Rex server owns sessions and programs, so quitting the app leaves Pi running. A server stop or reboot ends every program. On restart Rex brings back sessions, tabs, labels, cwds and block ids, but each block starts a fresh shell: commands are not replayed and the scrollback was gone.
+- Pi already reports OSC 7501 program status (working, blocked, done, error, idle) when the terminal supports it. Rex shows it in its session picker and tab headers, and `rex block call … program_status` reads it.
+- Every Rex terminal gets `REX_SESSION`, `REX_BLOCK`, `REX_SERVER` and `TERM_PROGRAM=rex`, and loses the `GHOSTTY_*` variables, so our Ghostty paths switch off cleanly.
+- The `rex` CLI, Lua scripts (`rex do`), events and the self-describing API (`rex api list`) cover everything we do with AppleScript.
+- `rex server stop` ignores `REX_SERVER` and stops the app's server, ending every session.
+- `rex skill setup` writes `~/.agents/skills/rex`, which Pi reads. Its text comes from the `rex` binary, so it changes with every Rex update, outside our reviewed-bump rule.
+
+What moves:
+
+- [ ] Session restore (dotfiles pieces and `pi-ghostty-restore/`): only reboots remain. Key restore entries on `$REX_BLOCK`; no AppleScript, no typing into the terminal.
+- [ ] the-dude: terminal id from `REX_BLOCK`, groups from Rex sessions (`session.view`), Enter through the app's `session.select` action (needs Remote Control in Rex settings), statuses from Pi's OSC 7501. The `send_to_session` socket stays.
+- [ ] pi-ghostty-hunk, pi-ghostty-lazygit, pi-jobs `o`: `rex run` / `rex window new` instead of AppleScript.
+- [ ] Dotfiles: skhd Hyper+G to bundle id `com.superlogical.rex`; Ghostty config (font, Rose Pine, option-as-alt, the Ctrl+E/Ctrl+K raw keys, copy-on-select) into Rex settings and `~/.config/rex/init.lua`.
+
+Untested, check before switching: Shift+Enter and the Kitty keyboard protocol, Pi's `system` theme reading Rex's palette, focus reports (DECSET 1004), OSC 777 notifications, whether a Rex update restarts a server with running sessions.
+
 ## Ownership rules
 
 - Put extension-specific TODOs next to the extension folder.
