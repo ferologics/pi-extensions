@@ -2,6 +2,7 @@
 // priority changes. Adds no prompt text and no tools.
 
 import type { Server } from "node:net";
+import { basename } from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { FOCUS_DISABLE, FOCUS_ENABLE, FocusParser } from "./focus.js";
@@ -54,6 +55,13 @@ function processState(): ProcessState {
 function firstLine(text: string): string {
     const line = text.split("\n").find((candidate) => candidate.trim()) ?? "";
     return line.trim().slice(0, LABEL_CHARS);
+}
+
+/** A prompt's label: its first line of your own text, skipping files attached with @ (else the first file's name). */
+export function promptLabel(text: string): string {
+    const files = [...text.matchAll(/<file name="([^"]*)">[\s\S]*?<\/file>/g)];
+    const own = firstLine(files.reduce((rest, [block]) => rest.replace(block, ""), text));
+    return own || (files[0] ? basename(files[0][1]!) : "");
 }
 
 function userText(entry: SessionEntry): string | undefined {
@@ -138,7 +146,7 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
         const branch = ctx.sessionManager.getBranch();
         if (!firstPrompt) {
             const prompt = branch.map(userText).find((text) => text?.trim() && !MESSAGE_HEADER.test(text));
-            firstPrompt = firstLine(prompt ?? "");
+            firstPrompt = promptLabel(prompt ?? "");
         }
         base.label = ctx.sessionManager.getSessionName()?.slice(0, LABEL_CHARS) || firstPrompt;
         if (!pendingPriority) {
@@ -308,7 +316,7 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
         messageRuns = 0;
         tracker.input();
         if (!firstPrompt && !event.text.trimStart().startsWith("/")) {
-            firstPrompt = firstLine(event.text);
+            firstPrompt = promptLabel(event.text);
             readSession();
         }
         publish();

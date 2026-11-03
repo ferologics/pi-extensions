@@ -36,6 +36,7 @@ Open questions:
 - [ ] How extensions reach it: a process-wide object (`Symbol.for`; survives `/reload`, no load-order dependency) or `pi.events` (Pi's documented channel, but fire-and-forget: no replies, and registrations depend on load order)
 - [ ] Which fields are core (pid, session, cwd, label, terminal id) and which belong to a consumer (status, priority, recap)
 - [ ] Whether pi-ghostty-restore and pi-jobs watches wait for it, or ship first and move onto it later
+- [ ] Which session operations the layer carries beyond messages: abort, reload (`/reload-global` below), maybe any operation Pi exposes to extensions, so other sessions and Tank can control a session, not only message it
 
 Parked:
 

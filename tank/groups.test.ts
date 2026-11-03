@@ -3,6 +3,7 @@ import { groupSessions } from "./groups.js";
 import { resolveTarget } from "./index.js";
 import type { LiveSession, Priority } from "./live.js";
 import { currentBranch, tailParts } from "./peek.js";
+import { promptLabel } from "./reporter.js";
 
 function session(
     pid: number,
@@ -145,5 +146,16 @@ describe("peek", () => {
         ] as unknown as Parameters<typeof currentBranch>[0];
         const markdown = tailParts(currentBranch(entries)).join("\n\n");
         expect(markdown).toBe("**✉ Message from another Pi session (project app, session s1):** please review");
+    });
+});
+
+describe("promptLabel", () => {
+    it("labels a prompt by your own text, skipping files attached with @", () => {
+        const file = '<file name="/tmp/the-dude/slice-1-brief.md">\n# The Dude: first slice\n</file>';
+        expect(promptLabel(`${file}\nRead the brief, then propose the plan.`)).toBe(
+            "Read the brief, then propose the plan.",
+        );
+        expect(promptLabel(file)).toBe("slice-1-brief.md");
+        expect(promptLabel("fix the login test\nmore")).toBe("fix the login test");
     });
 });

@@ -23,8 +23,7 @@ Done when you can open the board and see your real sessions with correct statuse
 - [x] Check on your real sessions in Ghostty: window grouping and Enter confirmed by you; done (unseen) cards seen on the real board.
 - [x] Hyper+T shows and hides the board from anywhere in Pi, also mid-message (Pi shortcut; skhd leaves the key alone).
 - [x] Queued session messages go through Pi's own queue (they are sent as user messages): shown above the editor while they wait, and put back into the editor on abort.
-- [ ] Tell the sender when an abort puts its queued message back into the editor; it was already told "queued as a follow-up".
-- [ ] Labels from prompts that start with an attached file read `<file name="…">`, because the label is the first line of the first prompt. Skip `<file>` blocks. (A `/name` already wins.)
+- [x] Labels skip files attached with @: the first line of your own text, else the first file's name. (A `/name` wins.)
 
 ## Slice 2: Tank
 
