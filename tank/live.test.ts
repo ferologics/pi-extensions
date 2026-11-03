@@ -10,7 +10,7 @@ import { close, listen, request } from "./socket.js";
 const dirs: string[] = [];
 function tempDir(): string {
     // Unix socket paths are limited to about 104 bytes on macOS, so keep this short.
-    const dir = mkdtempSync(join(tmpdir(), "dude-"));
+    const dir = mkdtempSync(join(tmpdir(), "tank-"));
     dirs.push(dir);
     return dir;
 }
@@ -53,7 +53,7 @@ describe("live files", () => {
     });
 
     it("returns nothing when the directory does not exist", () => {
-        expect(listLive(join(tmpdir(), "dude-missing-dir"))).toEqual([]);
+        expect(listLive(join(tmpdir(), "tank-missing-dir"))).toEqual([]);
     });
 });
 

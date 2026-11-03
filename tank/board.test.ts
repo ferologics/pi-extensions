@@ -55,8 +55,10 @@ function live(pid: number, project: string, sessionFile: string): LiveSession {
     };
 }
 
-/** Let pending file reads finish: setImmediate is not faked. */
-const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
+/** Let settled promises run their callbacks: setImmediate is not faked. */
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+/** Whether the board is reading a transcript right now; file reads take as long as the machine is busy. */
+const reading = (board: Board) => (board as unknown as { peekLoading: boolean }).peekLoading;
 
 describe("Board peek", () => {
     let dir: string;
@@ -66,7 +68,7 @@ describe("Board peek", () => {
 
     beforeEach(async () => {
         vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
-        dir = mkdtempSync(join(tmpdir(), "dude-board-"));
+        dir = mkdtempSync(join(tmpdir(), "tank-board-"));
         otherFile = join(dir, "other.jsonl");
         const hereFile = join(dir, "here.jsonl");
         writeFileSync(otherFile, transcript("the other session's prompt"));
@@ -76,11 +78,9 @@ describe("Board peek", () => {
         writeLive(dir, live(other.pid!, "a", otherFile));
         writeLive(dir, live(process.pid, "b", hereFile));
         board = new Board(tui, theme as unknown as Theme, dir, () => {});
-        await settle();
         board.handleInput(UP);
         board.handleInput(" ");
-        await settle();
-        expect(board.render(120).join("\n")).toContain("the other session's prompt");
+        await vi.waitFor(() => expect(board.render(120).join("\n")).toContain("the other session's prompt"));
     });
 
     afterEach(() => {
@@ -94,7 +94,6 @@ describe("Board peek", () => {
         other.kill();
         await new Promise((resolve) => other.once("exit", resolve));
         vi.advanceTimersByTime(1000);
-        await settle();
         const screen = board.render(120).join("\n");
         expect(screen).toContain("This session ended.");
         expect(screen).not.toContain("this session's prompt");
@@ -104,15 +103,16 @@ describe("Board peek", () => {
         appendFileSync(otherFile, "\n");
         utimesSync(otherFile, new Date(), new Date(Date.now() + 60_000));
         vi.advanceTimersByTime(1000);
+        expect(reading(board)).toBe(true);
         board.handleInput(ESCAPE);
-        await settle();
+        await vi.waitFor(() => expect(reading(board)).toBe(false));
         expect(board.render(120).join("\n")).toContain("space peek");
     });
 
     it("shows why it can't read Ghostty's windows", async () => {
         vi.mocked(readLayout).mockRejectedValueOnce(new Error("osascript timed out"));
         vi.advanceTimersByTime(2000);
-        await settle();
+        await flush();
         expect(board.render(120).join("\n")).toContain("osascript timed out");
     });
 });
@@ -145,7 +145,7 @@ describe("Board colors", () => {
 
     beforeEach(async () => {
         vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
-        dir = mkdtempSync(join(tmpdir(), "dude-colors-"));
+        dir = mkdtempSync(join(tmpdir(), "tank-colors-"));
         const statuses = ["needs-you", "unseen", "working"] as const;
         for (const [index, status] of statuses.entries()) {
             const process = spawn("sleep", ["60"]);
@@ -163,7 +163,7 @@ describe("Board colors", () => {
             startedAt: "2026-10-28T10:00:00.000Z",
         });
         board = new Board(tui, taggingTheme as unknown as Theme, dir, () => {});
-        await settle();
+        await flush();
     });
 
     afterEach(() => {

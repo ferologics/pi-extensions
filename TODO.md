@@ -12,7 +12,7 @@ Use this file as an index (and for truly shared extension-platform chores).
 - Plan mode: `plan-mode/TODO.md`
 - Pi verbosity control: `pi-verbosity-control/TODO.md`
 - Prompt stash: `prompt-stash/TODO.md`
-- The Dude and Duck: `the-dude/TODO.md`
+- Tank and Duck: `tank/TODO.md`
 
 ## Proposal: shared live-session layer (undecided)
 
@@ -20,15 +20,15 @@ Status: an idea, not a decision. Collect the consumers first; work below will sh
 
 Several extensions need to see or reach other running Pi sessions, and each builds its own way in:
 
-- the-dude: a record (`~/.local/state/pi/live/<pid>.json`) and a socket (`<pid>.sock`) per interactive session, handling `send` and `priority`. the-dude owns both today.
-- `session-registry.ts` in the dotfiles (`pi-ghostty-restore/` proposal): its own Ghostty terminal UUID lookup, the same as the-dude's `ghostty.ts`.
+- tank: a record (`~/.local/state/pi/live/<pid>.json`) and a socket (`<pid>.sock`) per interactive session, handling `send` and `priority`. tank owns both today.
+- `session-registry.ts` in the dotfiles (`pi-ghostty-restore/` proposal): its own Ghostty terminal UUID lookup, the same as tank's `ghostty.ts`.
 - pi-jobs session watches: delivering a report into a live source session needs a message channel (`pi-jobs/TODO.md`).
 - pi-subagent: its own file inbox for parent-to-child messages (upstream package).
 - `/reload-global` (parked, below).
 
-Idea: move the record and the socket out of the-dude into a layer any extension can use: handle requests by type, publish its own fields, list sessions, send or broadcast requests. the-dude becomes one consumer.
+Idea: move the record and the socket out of tank into a layer any extension can use: handle requests by type, publish its own fields, list sessions, send or broadcast requests. tank becomes one consumer.
 
-Still to come that will inform it: the-dude slice 2 (The Dude's tools to list, read, focus and message sessions) and pi-jobs watch delivery.
+Still to come that will inform it: tank slice 2 (Tank's tools to list, read, focus and message sessions) and pi-jobs watch delivery.
 
 Open questions:
 
@@ -39,7 +39,7 @@ Open questions:
 
 Parked:
 
-- [ ] `/reload-global`: `/reload` in every live session at once. Built and tested inside the-dude, then shelved until the layer is decided. What it needs:
+- [ ] `/reload-global`: `/reload` in every live session at once. Built and tested inside tank, then shelved until the layer is decided. What it needs:
   - Only a command context can reload, so a receiving session dispatches its own command with `pi.sendUserMessage("/<command>", { expandPromptTemplates: true })`. The handler runs even mid-run; it calls `ctx.waitForIdle()`, then `ctx.reload()`, so no run is cut off.
   - The initiating session reports from the runtime the reload creates: the old ctx is stale, the chat is rebuilt, and an info notify collapses into Pi's own "Reloaded …" status line.
   - Sessions running code without the request answer `unknown request`, so the first rollout needs one manual `/reload` each.
@@ -60,7 +60,7 @@ Checked in November 2026 (Rex 0.0.1793299046, Pi 1.4.0):
 What moves:
 
 - [ ] Session restore (dotfiles pieces and `pi-ghostty-restore/`): only reboots remain. Key restore entries on `$REX_BLOCK`; no AppleScript, no typing into the terminal.
-- [ ] the-dude: terminal id from `REX_BLOCK`, groups from Rex sessions (`session.view`), Enter through the app's `session.select` action (needs Remote Control in Rex settings), statuses from Pi's OSC 7501. The `send_to_session` socket stays.
+- [ ] tank: terminal id from `REX_BLOCK`, groups from Rex sessions (`session.view`), Enter through the app's `session.select` action (needs Remote Control in Rex settings), statuses from Pi's OSC 7501. The `send_to_session` socket stays.
 - [ ] pi-ghostty-hunk, pi-ghostty-lazygit, pi-jobs `o`: `rex run` / `rex window new` instead of AppleScript.
 - [ ] Dotfiles: skhd Hyper+G to bundle id `com.superlogical.rex`; Ghostty config (font, Rose Pine, option-as-alt, the Ctrl+E/Ctrl+K raw keys, copy-on-select) into Rex settings and `~/.config/rex/init.lua`.
 

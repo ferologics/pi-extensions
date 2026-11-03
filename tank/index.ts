@@ -1,5 +1,5 @@
 /**
- * The Dude, slice 1: every interactive session publishes its state and listens for messages, and `/dude` shows them
+ * Tank, slice 1: every interactive session publishes its state and listens for messages, and `/tank` shows them
  * all on one board. See README.md, and VISION.md / TODO.md for where this goes.
  */
 
@@ -31,7 +31,7 @@ export function resolveTarget(sessions: LiveSession[], target: string): LiveSess
     return `"${target}" ${problem}. Live sessions:\n${list}`;
 }
 
-export default function theDude(pi: ExtensionAPI): void {
+export default function tank(pi: ExtensionAPI): void {
     const reporter = registerReporter(pi);
 
     pi.registerMessageRenderer<{ from?: Sender }>(MESSAGE_TYPE, (message, { expanded }, theme) => {
@@ -103,11 +103,11 @@ export default function theDude(pi: ExtensionAPI): void {
         },
     });
 
-    pi.registerCommand("dude", {
+    pi.registerCommand("tank", {
         description: "Board of every live Pi session: status, recap, peek, jump to its terminal",
         handler: async (_args, ctx) => {
             if (ctx.mode !== "tui") {
-                ctx.ui.notify("/dude needs interactive mode", "error");
+                ctx.ui.notify("/tank needs interactive mode", "error");
                 return;
             }
             reporter.setBoardOpen(true);

@@ -1,6 +1,6 @@
 # VISION
 
-The Dude is a meta agent for running many Pi sessions in parallel. You talk to him about what is going on across your sessions, what you worked on before, and what to focus on next. Every session you care about can also have a Duck: a paired reviewer that opens as an overlay inside that session.
+Tank is a meta agent for running many Pi sessions in parallel. You talk to him about what is going on across your sessions, what you worked on before, and what to focus on next. Every session you care about can also have a Duck: a paired reviewer that opens as an overlay inside that session.
 
 ## Problem
 
@@ -20,8 +20,8 @@ Where this goes: visibility into all your work (status, progress, usage over hou
 
 Two things that other tools also keep apart:
 
-- **The board**: a screen, like Claude Code's agent view. `/dude` in any session opens it as an overlay. It reads published state and session files, makes no model calls, and opens instantly. Peek a session in place, Enter jumps to its terminal.
-- **The Dude**: a conversation, like Amp's Puck. You talk to him in his own window, and later from an input line on the board, with the session you are in as "this".
+- **The board**: a screen, like Claude Code's agent view. `/tank` in any session opens it as an overlay. It reads published state and session files, makes no model calls, and opens instantly. Peek a session in place, Enter jumps to its terminal.
+- **Tank**: a conversation, like Amp's Puck. You talk to him in his own window, and later from an input line on the board, with the session you are in as "this".
 
 ## Primitives
 
@@ -29,7 +29,7 @@ Two things that other tools also keep apart:
 2. **Session record.** A short rolling record per session (goal, outcome, decisions, friction, next step) with pointers into the transcript. Each update starts from the previous record plus what changed, so cost follows new work, not session size.
 3. **Direct messages.** Send a message to a session by id, labeled with the sender, delivered as a follow-up or a steer.
 4. **Duck.** A fresh session on the other model family that reviews one main session. It reads the main transcript as data, not as its own history, stays resumable, and can send notes to the main session.
-5. **The Dude.** A directory, not a separate program: his prompt (`AGENTS.md`), his notes (git-tracked) and `.pi/settings.json`, which loads his tools. Conversations with him are ordinary Pi sessions in that directory, so his window is `pi` started there, and Ghostty restore brings it back like any other session. Regular sessions and subagents never load his tools because they never run there.
+5. **Tank.** A directory, not a separate program: his prompt (`AGENTS.md`), his notes (git-tracked) and `.pi/settings.json`, which loads his tools. Conversations with him are ordinary Pi sessions in that directory, so his window is `pi` started there, and Ghostty restore brings it back like any other session. Regular sessions and subagents never load his tools because they never run there.
 
 Rollups, grouping and jumping between windows are built from these.
 
@@ -37,10 +37,10 @@ Rollups, grouping and jumping between windows are built from these.
 
 - Every piece has to remove a pain you feel today. Prior art is input, not a dependency.
 - Sessions stay the source of truth. Records and notes are derived and can be rebuilt.
-- Memory only where it is the agent's job. Work sessions get none. The Dude keeps notes on your priorities, plans and ideas; they change only when you ask or accept a proposed edit, and they are git-tracked. Anything that can be read from live sessions is read, not stored, so notes don't rot.
+- Memory only where it is the agent's job. Work sessions get none. Tank keeps notes on your priorities, plans and ideas; they change only when you ask or accept a proposed edit, and they are git-tracked. Anything that can be read from live sessions is read, not stored, so notes don't rot.
 - Deterministic signals first. Use a model pass only where intent can't be read from session state, and bundle what a session needs (recap, name, record) into one pass instead of several.
 - Give agents files and tools, not pasted transcripts. Pi sessions are already files.
-- Personas stay thin: a session, a prompt, a few tools and a binding (Duck to one session, The Dude to all of them). No general subagent recursion until something needs it.
+- Personas stay thin: a session, a prompt, a few tools and a binding (Duck to one session, Tank to all of them). No general subagent recursion until something needs it.
 - Installable by others. The package carries no personal setup; macOS and Ghostty come first, behind a small seam so other terminals and Linux can follow.
 
 ## Not doing

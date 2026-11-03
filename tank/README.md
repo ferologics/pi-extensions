@@ -1,12 +1,12 @@
-# the-dude
+# tank
 
-One board for every Pi session you have open. Each interactive Pi session publishes what it is doing; `/dude` in any session shows them all, grouped the way you group them (Ghostty windows), with what each one is about and whether it needs you. Enter jumps to the session's terminal.
+One board for every Pi session you have open. Each interactive Pi session publishes what it is doing; `/tank` in any session shows them all, grouped the way you group them (Ghostty windows), with what each one is about and whether it needs you. Enter jumps to the session's terminal.
 
-This is the first slice of The Dude, a meta agent for running many sessions in parallel. See [VISION.md](VISION.md) and [TODO.md](TODO.md) for where it goes.
+This is the first slice of Tank, a meta agent for running many sessions in parallel. See [VISION.md](VISION.md) and [TODO.md](TODO.md) for where it goes.
 
 ## The board
 
-`/dude` opens a fullscreen overlay:
+`/tank` opens a fullscreen overlay:
 
 - One group per Ghostty window, sessions in tab order. The header lists the window's projects and its best priority. Windows with a p0 session come first.
 - Sessions outside Ghostty (tmux, other terminals) are grouped by project after the windows.
@@ -20,7 +20,7 @@ This is the first slice of The Dude, a meta agent for running many sessions in p
 | `p` `0`–`3` | Set the session's priority (`p` `-` clears it)                                 |
 | `esc`       | Close the peek, or the board                                                   |
 
-Priority is saved in the session itself (a `the-dude-priority` custom entry), so it survives `/resume` and Ghostty restore.
+Priority is saved in the session itself (a `tank-priority` custom entry), so it survives `/resume` and Ghostty restore.
 
 ## Statuses
 

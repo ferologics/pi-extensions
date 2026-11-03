@@ -55,7 +55,7 @@ interface Peek {
 }
 
 /**
- * `/dude` board: every live Pi session as a card, grouped by Ghostty window and sorted by priority. Space peeks a
+ * `/tank` board: every live Pi session as a card, grouped by Ghostty window and sorted by priority. Space peeks a
  * session's transcript tail in place, Enter focuses its terminal, `p` then 0–3 sets its priority.
  */
 export class Board implements Component {
@@ -284,7 +284,7 @@ export class Board implements Component {
         const lines: string[] = [];
         let selectedTop = 0;
         if (this.groups.length === 0) {
-            lines.push(th.fg("dim", "No live Pi sessions. Sessions show up here once they run with the-dude loaded."));
+            lines.push(th.fg("dim", "No live Pi sessions. Sessions show up here once they run with tank loaded."));
         }
         for (const group of this.groups) {
             const priority = group.priority === undefined ? "" : ` p${group.priority}`;
@@ -350,7 +350,7 @@ export class Board implements Component {
             .map((status) => th.fg(STATUS_LOOK[status].color, `${counts[status]} ${STATUS_LOOK[status].label}`))
             .join(th.fg("dim", " · "));
         const layoutError = this.layoutError ? th.fg("error", `  · ${this.layoutError}`) : "";
-        const title = ` ${th.fg("dim", th.bold("dude"))}  ${summary}${layoutError}${this.flash ? th.fg("dim", `  · ${this.flash}`) : ""}`;
+        const title = ` ${th.fg("dim", th.bold("tank"))}  ${summary}${layoutError}${this.flash ? th.fg("dim", `  · ${this.flash}`) : ""}`;
         const row = (content: string) => {
             const clipped = truncateToWidth(content, inner);
             return `${th.fg("borderMuted", "│")} ${clipped}${" ".repeat(Math.max(0, inner - visibleWidth(clipped)))} ${th.fg("borderMuted", "│")}`;

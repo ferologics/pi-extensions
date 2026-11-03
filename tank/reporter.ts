@@ -12,7 +12,7 @@ import { MESSAGE_TYPE, messageContent } from "./message.js";
 import { close, listen, type Request, type Response } from "./socket.js";
 import { StatusTracker } from "./status.js";
 
-const PRIORITY_TYPE = "the-dude-priority";
+const PRIORITY_TYPE = "tank-priority";
 const RECAP_TYPE = "session-recap";
 const SESSION_POLL_MS = 5000;
 const LABEL_CHARS = 120;
@@ -31,7 +31,7 @@ interface ProcessState {
 
 // Once per process, not per extension runtime: /reload and /new replace the runtime but not the terminal.
 function processState(): ProcessState {
-    const key = Symbol.for("the-dude-reporter");
+    const key = Symbol.for("tank-reporter");
     const holder = globalThis as unknown as Record<symbol, ProcessState | undefined>;
     const existing = holder[key];
     const state: ProcessState = existing ?? {};
@@ -123,7 +123,7 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
         } catch (error) {
             if (!writeFailing) {
                 const reason = error instanceof Error ? error.message : String(error);
-                ctx?.ui.notify(`the-dude: can't publish this session to the board: ${reason}`, "error");
+                ctx?.ui.notify(`tank: can't publish this session to the board: ${reason}`, "error");
             }
             writeFailing = true;
             return;
@@ -275,7 +275,7 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
                 if (base !== session) return;
                 const reason = error instanceof Error ? error.message : String(error);
                 startCtx.ui.notify(
-                    `the-dude: can't find this session's Ghostty terminal, so the board can't group it under its window or jump to it (/reload retries): ${reason}`,
+                    `tank: can't find this session's Ghostty terminal, so the board can't group it under its window or jump to it (/reload retries): ${reason}`,
                     "warning",
                 );
             },
@@ -283,10 +283,7 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
         try {
             server = await listen(socketPath(dir, process.pid), handle);
         } catch (error) {
-            startCtx.ui.notify(
-                `the-dude: no message socket: ${error instanceof Error ? error.message : error}`,
-                "warning",
-            );
+            startCtx.ui.notify(`tank: no message socket: ${error instanceof Error ? error.message : error}`, "warning");
         }
     });
 

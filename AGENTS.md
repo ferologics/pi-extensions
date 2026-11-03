@@ -45,7 +45,7 @@ Current extensions:
 - `pi-web`
 - `plan-mode`
 - `pi-verbosity-control`
-- `the-dude`
+- `tank`
 
 ## pi-jobs daemon
 
