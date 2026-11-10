@@ -97,7 +97,7 @@ His tools, besides `send_to_session`:
 | `tank_read`     | The end of a session's transcript; older history is in its session file                         |
 | `tank_priority` | Set a session's priority (p0–p3) or clear it                                                    |
 | `tank_focus`    | Bring a session's terminal to the front                                                         |
-| `tank_notes`    | Replace `NOTES.md` or a topic note: you see the diff, and an accepted edit is one git commit    |
+| `tank_notes`    | Replace `NOTES.md` or a topic note; each edit is one git commit                                 |
 
 A changed notes section reaches his prompt as a patch. On models that take mid-conversation system messages (Opus 5.5 and GPT-6 in Pi's catalog) the cached prompt survives it; on others Pi rebuilds the prompt.
 

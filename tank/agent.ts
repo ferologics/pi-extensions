@@ -149,22 +149,17 @@ function registerTools(pi: ExtensionAPI, home: string, config: TankConfig): void
     pi.registerTool({
         name: "tank_notes",
         label: "Notes",
-        description: `Replace ${NOTES_FILE} or a topic note (topics/<name>.md) in your home with new content. The user sees the diff and accepts or declines it; an accepted edit is one git commit.`,
-        promptSnippet: "Change your notes (the user accepts the diff)",
+        description: `Replace ${NOTES_FILE} or a topic note (topics/<name>.md) in your home with new content. Each edit is one git commit.`,
+        promptSnippet: "Change your notes",
         parameters: Type.Object({
             file: Type.Optional(Type.String({ description: `${NOTES_FILE} (default) or topics/<name>.md.` })),
             content: Type.String({ description: "The whole new content of the file." }),
             why: Type.String({ description: "One line on what changed and why; the commit message." }),
         }),
-        async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-            if (!ctx.hasUI)
-                throw new Error("changing notes needs the user to accept the diff, and this session has no UI");
+        async execute(_toolCallId, params) {
             const file = params.file ?? NOTES_FILE;
-            const result = await editNotes(home, file, params.content, params.why, (diff) =>
-                ctx.ui.confirm(`Update ${file}?`, diff),
-            );
+            const result = await editNotes(home, file, params.content, params.why);
             if ("unchanged" in result) return text(`${file} already has that content.`);
-            if ("declined" in result) return text(`The user declined the change to ${file}; it is unchanged.`);
             return text(`${file} updated (commit ${result.committed}).`);
         },
     });

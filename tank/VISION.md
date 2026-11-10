@@ -37,7 +37,7 @@ Rollups, grouping and jumping between windows are built from these.
 
 - Every piece has to remove a pain you feel today. Prior art is input, not a dependency.
 - Sessions stay the source of truth. Records and notes are derived and can be rebuilt.
-- Memory only where it is the agent's job. Work sessions get none. Tank keeps short notes (directives, priorities, follow-ups) in his prompt and topic notes he reads when needed; they change only through a diff you accept, one git commit each, and they can be turned off. What can be read from sessions is read, not stored. How much memory helps is still an open question.
+- Memory only where it is the agent's job. Work sessions get none. Tank keeps short notes (directives, priorities, follow-ups) in his prompt and topic notes he reads when needed. He writes them himself, one git commit per edit, so `git log` shows what he noted and `git revert` undoes it; they can be turned off. What can be read from sessions is read, not stored. How much memory helps is still an open question.
 - No rules in prompts ahead of a reason. Tank's prompt says what he is and what he has, not what he may not do.
 - Deterministic signals first. Use a model pass only where intent can't be read from session state, and bundle what a session needs (recap, name, record) into one pass instead of several.
 - Give agents files and tools, not pasted transcripts. Pi sessions are already files.

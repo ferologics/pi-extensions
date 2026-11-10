@@ -39,31 +39,19 @@ describe("readTankConfig", () => {
 describe("editNotes", () => {
     const next = "# Notes\n\n## Priorities\n\n- 2026-10-31 p0: the tank board\n";
 
-    it("shows the diff and commits only the notes file when it is accepted", async () => {
+    it("commits only the notes file", async () => {
         writeFileSync(join(home, "unrelated.md"), "not his to commit\n");
-        let shown = "";
-        const result = await editNotes(home, "NOTES.md", next, "p0 is the tank board", async (diff) => {
-            shown = diff;
-            return true;
-        });
-        expect(shown).toContain("+- 2026-10-31 p0: the tank board");
+        const result = await editNotes(home, "NOTES.md", next, "p0 is the tank board");
         expect(result).toMatchObject({ committed: expect.any(String) });
+        expect(readFileSync(join(home, "NOTES.md"), "utf8")).toBe(next);
         expect(git("log", "-1", "--format=%s")).toBe("notes: p0 is the tank board");
         expect(git("status", "--porcelain")).toBe("?? unrelated.md");
     });
 
-    it("writes nothing when it is declined", async () => {
-        const result = await editNotes(home, "NOTES.md", next, "nope", async () => false);
-        expect(result).toEqual({ declined: true });
-        expect(readFileSync(join(home, "NOTES.md"), "utf8")).toBe("# Notes\n\n## Priorities\n");
-    });
-
     it("creates topic notes, and refuses other paths and an oversized NOTES.md", async () => {
-        await editNotes(home, "topics/mobile-e2e.md", "# Mobile e2e\n", "new topic", async () => true);
+        await editNotes(home, "topics/mobile-e2e.md", "# Mobile e2e\n", "new topic");
         expect(readFileSync(join(home, "topics/mobile-e2e.md"), "utf8")).toBe("# Mobile e2e\n");
-        await expect(editNotes(home, "../escape.md", "x", "x", async () => true)).rejects.toThrow("notes live in");
-        await expect(editNotes(home, "NOTES.md", "x".repeat(NOTES_LIMIT + 1), "x", async () => true)).rejects.toThrow(
-            "keep it under",
-        );
+        await expect(editNotes(home, "../escape.md", "x", "x")).rejects.toThrow("notes live in");
+        await expect(editNotes(home, "NOTES.md", "x".repeat(NOTES_LIMIT + 1), "x")).rejects.toThrow("keep it under");
     });
 });
