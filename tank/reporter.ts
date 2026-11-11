@@ -6,11 +6,11 @@ import { basename } from "node:path";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { FOCUS_DISABLE, FOCUS_ENABLE, FocusParser } from "./focus.js";
-import { lookupTerminalId } from "./ghostty.js";
 import { type LiveSession, liveDir, type Priority, removeLive, socketPath, writeLive } from "./live.js";
 import { type Project, projectOf } from "./project.js";
 import { isTankHome } from "./home.js";
 import { MESSAGE_HEADER, MESSAGE_TYPE, messageContent } from "./message.js";
+import { labelTab, terminalId } from "./rex.js";
 import { close, listen, type Request, type Response } from "./socket.js";
 import { StatusTracker } from "./status.js";
 
@@ -27,30 +27,14 @@ export interface Reporter {
     setBoardOpen(open: boolean): void;
 }
 
-interface ProcessState {
-    terminalId?: Promise<string | undefined>;
-}
-
 // Once per process, not per extension runtime: /reload and /new replace the runtime but not the terminal.
-function processState(): ProcessState {
+function cleanUpOnExit(): void {
     const key = Symbol.for("tank-reporter");
-    const holder = globalThis as unknown as Record<symbol, ProcessState | undefined>;
-    const existing = holder[key];
-    const state: ProcessState = existing ?? {};
-    if (!existing) {
-        holder[key] = state;
-        const dir = liveDir();
-        process.on("exit", () => removeLive(dir, process.pid));
-    }
-    if (!state.terminalId) {
-        const lookup = lookupTerminalId();
-        state.terminalId = lookup;
-        // Keep only a successful lookup, so the next session start or /reload tries again.
-        lookup.catch(() => {
-            if (state.terminalId === lookup) state.terminalId = undefined;
-        });
-    }
-    return state;
+    const holder = globalThis as unknown as Record<symbol, true | undefined>;
+    if (holder[key]) return;
+    holder[key] = true;
+    const dir = liveDir();
+    process.on("exit", () => removeLive(dir, process.pid));
 }
 
 function firstLine(text: string): string {
@@ -107,6 +91,8 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
     let writeFailing = false;
     /** First line of the session's first prompt: the label whenever the session has no name. */
     let firstPrompt = "";
+    /** What this session last put on its Rex tab. */
+    let tabLabel = "";
 
     const current = (): LiveSession | undefined => {
         if (!base) return undefined;
@@ -119,9 +105,21 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
         };
     };
 
+    /** Title this session's Rex tab with its label and priority, so the sidebar says what each tab is. */
+    const labelOwnTab = (session: LiveSession) => {
+        if (!session.terminalId) return;
+        const label =
+            session.label && session.priority !== undefined ? `p${session.priority} · ${session.label}` : session.label;
+        if (label === tabLabel) return;
+        tabLabel = label;
+        // Cosmetic: a failed rename stays quiet, and the next label or priority change tries again.
+        labelTab(label).catch(() => {});
+    };
+
     const publish = () => {
         const session = current();
         if (!session) return;
+        labelOwnTab(session);
         const { updatedAt: _, ...comparable } = session;
         const key = JSON.stringify(comparable);
         if (key === published) return;
@@ -245,6 +243,7 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
         // pi-subagent children keep their own inbox until they move onto this mechanism.
         if (startCtx.mode !== "tui" || process.env.PI_SUBAGENT_RUN_DIR) return;
         ctx = startCtx;
+        cleanUpOnExit();
         tracker = new StatusTracker(!startCtx.isIdle());
         pendingPriority = undefined;
         messageRuns = 0;
@@ -259,6 +258,7 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
             cwd,
             project: { key: cwd, name: cwd.split("/").pop() || cwd },
             label: "",
+            terminalId: terminalId(),
             model: startCtx.model ? `${startCtx.model.provider}/${startCtx.model.id}` : undefined,
             ...(isTankHome(cwd) ? { tank: true as const } : {}),
             startedAt: now,
@@ -272,27 +272,11 @@ export function registerReporter(pi: ExtensionAPI): Reporter {
         }, SESSION_POLL_MS);
 
         const session = base;
-        const state = processState();
         void projectOf(cwd).then((project: Project) => {
             if (base !== session) return;
             session.project = project;
             publish();
         });
-        state.terminalId!.then(
-            (terminalId) => {
-                if (base !== session || !terminalId) return;
-                session.terminalId = terminalId;
-                publish();
-            },
-            (error: unknown) => {
-                if (base !== session) return;
-                const reason = error instanceof Error ? error.message : String(error);
-                startCtx.ui.notify(
-                    `tank: can't find this session's Ghostty terminal, so the board can't group it under its window or jump to it (/reload retries): ${reason}`,
-                    "warning",
-                );
-            },
-        );
         try {
             server = await listen(socketPath(dir, process.pid), handle);
         } catch (error) {

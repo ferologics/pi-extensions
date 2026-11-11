@@ -4,10 +4,10 @@
 import { StringEnum, Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { ago } from "./board.js";
-import { focusTerminal, type GhosttyWindow, readLayout } from "./ghostty.js";
 import { editNotes, NOTES_FILE, readNotes, readTankConfig, type TankConfig } from "./home.js";
 import { type LiveSession, listLive, liveDir, resolveTarget, socketPath } from "./live.js";
 import { readTail } from "./peek.js";
+import { focusTerminal, type RexSession, readLayout } from "./rex.js";
 import { request } from "./socket.js";
 
 const READ_TURNS = 3;
@@ -30,29 +30,25 @@ function sessionLines(session: LiveSession, place: string, now: number): string[
     ];
 }
 
-/** Every live session, by Ghostty window front to back and tab order, then the ones outside Ghostty. */
-export function describeSessions(
-    sessions: LiveSession[],
-    layout: GhosttyWindow[] | undefined,
-    now = Date.now(),
-): string {
+/** Every live session, by Rex session in sidebar order and tab order, then the ones outside Rex. */
+export function describeSessions(sessions: LiveSession[], layout: RexSession[] | undefined, now = Date.now()): string {
     const placed = new Set<number>();
     const lines: string[] = [];
-    (layout ?? []).forEach((window, windowIndex) => {
+    for (const rexSession of layout ?? []) {
         const found: string[] = [];
-        window.tabs.forEach((tab, tabIndex) => {
-            for (const terminalId of tab) {
-                const session = sessions.find((candidate) => candidate.terminalId === terminalId);
+        rexSession.tabs.forEach((tab, tabIndex) => {
+            for (const block of tab.blocks) {
+                const session = sessions.find((candidate) => candidate.terminalId === block);
                 if (!session) continue;
                 placed.add(session.pid);
                 found.push(...sessionLines(session, `tab ${tabIndex + 1}`, now));
             }
         });
-        if (found.length > 0) lines.push(`Window ${windowIndex + 1}${windowIndex === 0 ? " (front)" : ""}:`, ...found);
-    });
+        if (found.length > 0) lines.push(`Rex session "${rexSession.label}":`, ...found);
+    }
     const rest = sessions.filter((session) => !placed.has(session.pid));
     if (rest.length > 0) {
-        lines.push("Not in a Ghostty window:", ...rest.flatMap((session) => sessionLines(session, "", now)));
+        lines.push("Not in Rex:", ...rest.flatMap((session) => sessionLines(session, "", now)));
     }
     return lines.join("\n") || "No live Pi sessions.";
 }
@@ -74,8 +70,8 @@ function registerTools(pi: ExtensionAPI, home: string, config: TankConfig): void
         name: "tank_sessions",
         label: "Sessions",
         description:
-            "Every live Pi session on this machine by Ghostty window and tab, front window first: session id, project, label, status, priority, recap, cwd, model and session file.",
-        promptSnippet: "List every live Pi session by window",
+            "Every live Pi session on this machine by Rex session (a group of tabs in Rex's sidebar) and tab, in sidebar order: session id, project, label, status, priority, recap, cwd, model and session file.",
+        promptSnippet: "List every live Pi session by Rex session and tab",
         parameters: Type.Object({}),
         async execute() {
             const sessions = listLive(liveDir());
@@ -83,7 +79,7 @@ function registerTools(pi: ExtensionAPI, home: string, config: TankConfig): void
                 return text(describeSessions(sessions, await readLayout()));
             } catch (error) {
                 const reason = error instanceof Error ? error.message : String(error);
-                return text(`Can't read Ghostty's windows (${reason}).\n${describeSessions(sessions, undefined)}`);
+                return text(`Can't read Rex's sessions (${reason}).\n${describeSessions(sessions, undefined)}`);
             }
         },
     });
@@ -134,12 +130,12 @@ function registerTools(pi: ExtensionAPI, home: string, config: TankConfig): void
     pi.registerTool({
         name: "tank_focus",
         label: "Focus Session",
-        description: "Bring a session's Ghostty terminal to the front, so the user is looking at it.",
+        description: "Show a session's Rex tab in the app and focus its pane, so the user is looking at it.",
         promptSnippet: "Take the user to a session's terminal",
         parameters: Type.Object({ target: targetParam }),
         async execute(_toolCallId, params) {
             const session = findSession(params.target);
-            if (!session.terminalId) throw new Error(`"${session.label}" is not in a Ghostty window`);
+            if (!session.terminalId) throw new Error(`"${session.label}" is not in Rex`);
             await focusTerminal(session.terminalId);
             return text(`The user is now looking at "${session.label}" (${session.project.name}).`);
         },

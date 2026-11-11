@@ -56,7 +56,7 @@ function runSummary(run: RunRecord): string {
 /**
  * `/jobs` screen. The list puts runs to check (they notified or failed and were not opened yet) above the jobs, which
  * come sorted like a chat list. Below it: a job's runs, then one run's full transcript. Opening a run marks it read, and
- * any run can be opened in a fresh Pi session in a new Ghostty window.
+ * any run can be opened in a fresh Pi session in a new Rex tab.
  */
 export class JobsOverlay implements Component {
     private view: View = "list";

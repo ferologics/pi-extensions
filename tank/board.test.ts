@@ -6,12 +6,12 @@ import { initTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import { setKittyProtocolActive, type TUI } from "@earendil-works/pi-tui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Board } from "./board.js";
-import { readLayout } from "./ghostty.js";
 import { type LiveSession, writeLive } from "./live.js";
+import { readLayout } from "./rex.js";
 
 initTheme(undefined, false);
 
-vi.mock("./ghostty.js", () => ({ readLayout: vi.fn(async () => undefined), focusTerminal: vi.fn(async () => {}) }));
+vi.mock("./rex.js", () => ({ readLayout: vi.fn(async () => undefined), focusTerminal: vi.fn(async () => {}) }));
 
 const theme = {
     fg: (_color: string, text: string) => text,
@@ -109,11 +109,11 @@ describe("Board peek", () => {
         expect(board.render(120).join("\n")).toContain("space peek");
     });
 
-    it("shows why it can't read Ghostty's windows", async () => {
-        vi.mocked(readLayout).mockRejectedValueOnce(new Error("osascript timed out"));
+    it("shows why it can't read Rex's sessions", async () => {
+        vi.mocked(readLayout).mockRejectedValueOnce(new Error("rex timed out"));
         vi.advanceTimersByTime(2000);
         await flush();
-        expect(board.render(120).join("\n")).toContain("osascript timed out");
+        expect(board.render(120).join("\n")).toContain("rex timed out");
     });
 });
 

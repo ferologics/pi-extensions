@@ -8,7 +8,7 @@ Agents take minutes per task, so work runs in many sessions at once. The bottlen
 
 ## Goals
 
-- See every live session in one place, grouped the way you group them (Ghostty windows), with what it is about and whether it needs you, and jump to its terminal in one step.
+- See every live session in one place, grouped the way you group them (Rex sessions), with what it is about and whether it needs you, and jump to its terminal in one step.
 - Ask one agent questions that span sessions and time: what is running, what happened last week, what to focus on.
 - Keep the top-priority work in front of you and him, so easy low-priority work doesn't eat the day.
 - Pair a reviewer with a session without opening a second window, and let it send notes into the session directly.
@@ -29,7 +29,7 @@ Two things that other tools also keep apart:
 2. **Session record.** A short rolling record per session (goal, outcome, decisions, friction, next step) with pointers into the transcript. Each update starts from the previous record plus what changed, so cost follows new work, not session size.
 3. **Direct messages.** Send a message to a session by id, labeled with the sender, delivered as a follow-up or a steer.
 4. **Duck.** A fresh session on the other model family that reviews one main session. It reads the main transcript as data, not as its own history, stays resumable, and can send notes to the main session.
-5. **Tank.** One persistent agent with one home: a directory with his prompt (`AGENTS.md`), his notes (git-tracked) and the marker `.pi/tank.json`. A Pi session started there is Tank, and the tank extension gives it his tools; his window is that session, and Ghostty restore brings it back like any other. Every other session stays an ordinary session.
+5. **Tank.** One persistent agent with one home: a directory with his prompt (`AGENTS.md`), his notes (git-tracked) and the marker `.pi/tank.json`. A Pi session started there is Tank, and the tank extension gives it his tools; his tab is that session, and session restore brings it back like any other. Every other session stays an ordinary session.
 
 Rollups, grouping and jumping between windows are built from these.
 
@@ -42,7 +42,7 @@ Rollups, grouping and jumping between windows are built from these.
 - Deterministic signals first. Use a model pass only where intent can't be read from session state, and bundle what a session needs (recap, name, record) into one pass instead of several.
 - Give agents files and tools, not pasted transcripts. Pi sessions are already files.
 - Personas stay thin: a session, a prompt, a few tools and a binding (Duck to one session, Tank to all of them). No general subagent recursion until something needs it.
-- Installable by others. The package carries no personal setup; macOS and Ghostty come first, behind a small seam so other terminals and Linux can follow.
+- Built for us first. The package carries no personal setup; Rex comes first, behind a small seam (`rex.ts`) so other terminals can follow when someone needs them.
 
 ## Not doing
 

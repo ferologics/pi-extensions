@@ -24,6 +24,8 @@ Done when you can open the board and see your real sessions with correct statuse
 - [x] Hyper+T shows and hides the board from anywhere in Pi, also mid-message (Pi shortcut; skhd leaves the key alone).
 - [x] Queued session messages go through Pi's own queue (they are sent as user messages): shown above the editor while they wait, and put back into the editor on abort.
 - [x] Labels skip files attached with @: the first line of your own text, else the first file's name. (A `/name` wins.)
+- [x] Rex window layer in place of Ghostty (`rex.ts`): terminal id from `$REX_BLOCK`, one group per Rex session, Enter and `tank_focus` through the app's `session.select` (Remote Control), each session titles its Rex tab with its priority and label.
+- [ ] Check on real sessions in Rex: groups, Enter, tab titles in the sidebar.
 
 ## Slice 2: Tank
 
@@ -31,7 +33,8 @@ Done when you can open the board and see your real sessions with correct statuse
 - [x] Tools: `tank_sessions` (by window and tab), `tank_read` (transcript tail), `tank_priority`, `tank_focus`; `send_to_session` for messages.
 - [x] Notes: `NOTES.md` (Directives, Priorities, Follow-ups; dated, replaced in place, under 4000 characters) as a prompt section, `topics/*.md` read when needed, no daily log. `tank_notes` is the only write path, one git commit per edit; Tank notes what he finds useful without asking. `"notes": false` in `.pi/tank.json` turns them off.
 - [ ] Hyper+A: Tank's window from any app; starts him (`pi -c` in his home) when he isn't running; pressed again in Tank, back to where you were.
-- [ ] Regroup windows on request: he proposes a grouping from paths, labels and recaps, you approve the whole plan once, and he applies it by resuming each moved session in a new tab of the target window, then closing the old tab (Ghostty's AppleScript can't move tabs between windows). Idle sessions only; needs a `quit` request on the session socket.
+- [ ] Regroup on request: he proposes a grouping from paths, labels and recaps, you approve the whole plan once, and he applies it by resuming each moved session in a new tab of the target Rex session, then closing the old tab (Rex moves panes and tabs only within a session). Idle sessions only; needs a `quit` request on the session socket.
+- [ ] The Rex skill for Tank only: a reviewed copy of `rex skill show` in his home, refreshed on Rex updates, instead of Rex's integration (which gives every agent an unreviewed guide that changes with each update).
 - [ ] Research notes: Tank with notes on and off; whether they rot; cache reads on a real notes edit. Per Pi's model catalog, Opus 5.5 and GPT-6 take mid-conversation system messages, so an edited notes section goes out as a patch and the cached prompt stays; Haiku 4.5 rebuilds the prompt. Not measured yet.
 - [ ] Subagents Tank starts run in his home, so they become Tank too: his tools, including `tank_notes`. Decide whether they should. If not, they stay ordinary sessions, the way subagents already stay off the board.
 - [ ] Papercuts: capture a friction note in the moment; review them with Tank.
@@ -53,12 +56,13 @@ Done when you can open the board and see your real sessions with correct statuse
 Where the ideal is ahead of what we build now.
 
 - [ ] One digest pass per session that produces the recap, an auto name, the record, and whether a finished session is done for good or waiting on your input, instead of separate calls on the same data. Share a warm cache between such passes where it pays.
-- [ ] Auto session names that describe the session, kept current as it drifts; tab titles show them (tab-status could use the session name).
+- [ ] Auto session names that describe the session, kept current as it drifts; Rex tab titles show them (the reporter already titles the tab with the label).
 - [ ] Priority inference: time you spend focused in each session (the reporter already sees focus), plus what Tank knows of your plans.
 - [ ] Grouping rule: Tank proposes a grouping, you correct it, he keeps the rule he used and applies it next time.
-- [ ] Move tabs between windows natively, if Ghostty's AppleScript gains it.
+- [ ] Move tabs between Rex sessions natively, if Rex gains it.
 - [ ] Board: token usage over hours, days, weeks and months; a TL;DR across all sessions with where to focus next; progress per session.
-- [ ] Summon Tank from outside Ghostty.
+- [ ] Summon Tank from outside Rex.
+- [ ] An overseer: a Tank flavor that runs periodic work in its own session (naming and grouping sessions, surfacing what needs you), separate from the Tank you steer. Decide against a pi-jobs job first.
 
 ## Later
 
@@ -67,5 +71,4 @@ Where the ideal is ahead of what we build now.
 - [ ] Tank talking to Ducks instead of main sessions.
 - [ ] Linux window layer; remote sessions.
 - [ ] One Tank across machines: find a running one and connect to it, or start a local one; keep his notes and artifacts in sync (a git remote for his home is the first step).
-- [ ] Rex window layer in place of Ghostty: see "Later: move from Ghostty to Rex" in `../TODO.md`.
 - [ ] Move pi-subagent's parent-to-child messaging onto the shared mechanism (fork or upstream change), so subagents, Ducks and Tank all use one. See the shared live-session layer proposal in `../TODO.md`.

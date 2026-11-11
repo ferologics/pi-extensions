@@ -13,6 +13,7 @@ Custom extensions for [pi-coding-agent](https://www.npmjs.com/package/@earendil-
 | [`pi-jobs`](pi-jobs/)                           | Scheduled agent jobs in a Pi Durable daemon, with a `/jobs` overlay and inbox           |
 | [`pi-notify`](pi-notify/)                       | Desktop notifications when the agent finishes                                           |
 | [`pi-quote-copy`](pi-quote-copy/)               | Copy a quoted or fenced block from the last response as raw Markdown                    |
+| [`pi-rex-split`](pi-rex-split/)                 | `/hunk` and `/lg`: Hunk or lazygit in a Rex pane to the right of Pi                     |
 | [`pi-slack-user`](pi-slack-user/)               | Read Slack permalinks and post confirmed replies with a user OAuth token                |
 | [`pi-system-theme`](pi-system-theme/)           | Sync Pi theme with macOS dark/light mode and configurable theme names                   |
 | [`pi-web`](pi-web/)                             | Web search (Exa, Brave, Claude, Codex, Google) and page fetching                        |

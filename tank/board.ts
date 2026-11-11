@@ -9,10 +9,10 @@ import {
     visibleWidth,
     wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
-import { focusTerminal, type GhosttyWindow, readLayout } from "./ghostty.js";
 import { countStatuses, type Group, groupSessions } from "./groups.js";
 import { type LiveSession, listLive, type Priority, socketPath } from "./live.js";
 import { readTail } from "./peek.js";
+import { focusTerminal, type RexSession, readLayout } from "./rex.js";
 import { request } from "./socket.js";
 import type { Status } from "./status.js";
 
@@ -57,12 +57,12 @@ interface Peek {
 }
 
 /**
- * `/tank` board: every live Pi session as a card, grouped by Ghostty window and sorted by priority. Space peeks a
+ * `/tank` board: every live Pi session as a card, grouped by Rex session and sorted by priority. Space peeks a
  * session's transcript tail in place, Enter focuses its terminal, `p` then 0–3 sets its priority.
  */
 export class Board implements Component {
     private sessions: LiveSession[] = [];
-    private layout: GhosttyWindow[] | undefined;
+    private layout: RexSession[] | undefined;
     private groups: Group[] = [];
     private selectedPid: number | undefined;
     private peek: Peek | undefined;
@@ -70,7 +70,7 @@ export class Board implements Component {
     private choosingPriority = false;
     private scroll = 0;
     private flash = "";
-    /** Why the last read of Ghostty's windows failed; groups fall back to projects meanwhile. */
+    /** Why the last read of Rex's sessions failed; groups fall back to projects meanwhile. */
     private layoutError = "";
     /** Inner width of the last render, so arrow keys move through the same columns you see. */
     private lastWidth = 80;
@@ -107,7 +107,7 @@ export class Board implements Component {
             this.layout = await readLayout();
             this.layoutError = "";
         } catch (error) {
-            this.layoutError = `can't read Ghostty's windows: ${errorText(error)}`;
+            this.layoutError = `can't read Rex's sessions: ${errorText(error)}`;
         }
         this.groups = groupSessions(this.sessions, this.layout);
         this.tui.requestRender();
@@ -163,7 +163,7 @@ export class Board implements Component {
         }
         const terminalId = session.terminalId;
         if (!terminalId) {
-            this.flash = "not in a Ghostty window";
+            this.flash = "not in Rex";
             return;
         }
         void this.act(async () => {

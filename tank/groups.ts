@@ -1,5 +1,5 @@
-import type { GhosttyWindow } from "./ghostty.js";
 import type { LiveSession, Priority } from "./live.js";
+import type { RexSession } from "./rex.js";
 import type { Status } from "./status.js";
 
 export interface Group {
@@ -22,23 +22,24 @@ function projectsTitle(sessions: LiveSession[]): string {
 }
 
 /**
- * One group per Ghostty window, with sessions in tab order, since windows are how you already group related work.
- * Sessions outside Ghostty (or without a layout) are grouped by project. Groups sort by priority, then window order.
+ * One group per Rex session, titled by its label, with Pi sessions in tab order, since that is how you already group
+ * related work. Pi sessions outside Rex (or without a layout) are grouped by project. Groups sort by priority, then
+ * sidebar order.
  */
-export function groupSessions(sessions: LiveSession[], layout: GhosttyWindow[] | undefined): Group[] {
-    const position = new Map<string, { window: number; order: number }>();
-    (layout ?? []).forEach((window, windowIndex) => {
+export function groupSessions(sessions: LiveSession[], layout: RexSession[] | undefined): Group[] {
+    const position = new Map<string, { group: number; order: number }>();
+    (layout ?? []).forEach((rexSession, group) => {
         let order = 0;
-        for (const tab of window.tabs) {
-            for (const terminalId of tab) position.set(terminalId, { window: windowIndex, order: order++ });
+        for (const tab of rexSession.tabs) {
+            for (const block of tab.blocks) position.set(block, { group, order: order++ });
         }
     });
 
-    const windows = new Map<number, LiveSession[]>();
+    const placed = new Map<number, LiveSession[]>();
     const projects = new Map<string, LiveSession[]>();
     for (const session of sessions) {
         const found = session.terminalId ? position.get(session.terminalId) : undefined;
-        if (found) windows.set(found.window, [...(windows.get(found.window) ?? []), session]);
+        if (found) placed.set(found.group, [...(placed.get(found.group) ?? []), session]);
         else projects.set(session.project.key, [...(projects.get(session.project.key) ?? []), session]);
     }
 
@@ -47,11 +48,11 @@ export function groupSessions(sessions: LiveSession[], layout: GhosttyWindow[] |
     const byStart = (a: LiveSession, b: LiveSession) => a.startedAt.localeCompare(b.startedAt);
 
     const ordered: { group: Group; order: number }[] = [];
-    for (const [window, members] of windows) {
+    for (const [group, members] of placed) {
         members.sort(byTab);
         ordered.push({
-            group: { title: projectsTitle(members), priority: bestPriority(members), sessions: members },
-            order: window,
+            group: { title: layout![group]!.label, priority: bestPriority(members), sessions: members },
+            order: group,
         });
     }
     let order = (layout?.length ?? 0) + 1;

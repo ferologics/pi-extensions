@@ -8,22 +8,21 @@ import { transcriptMarkdown } from "./transcript.js";
 
 const run = promisify(execFile);
 
-/** The same Ghostty AppleScript pi-ghostty-hunk uses: a new window that types `input` into its shell. */
-function ghosttyWindowScript(directory: string, input: string): string {
-    return [
-        'tell application "Ghostty"',
-        "    activate",
-        "    set cfg to new surface configuration",
-        `    set initial working directory of cfg to ${JSON.stringify(directory)}`,
-        `    set initial input of cfg to ${JSON.stringify(`${input}\n`)}`,
-        "    new window with configuration cfg",
-        "end tell",
-    ].join("\n");
+/** A new tab in this Rex session with an interactive shell that runs `input`, so the shell's startup (Pi secrets
+ * included) runs first and the shell stays when Pi exits. */
+const NEW_TAB_SCRIPT = `
+local _, err = rex.session.new_window{
+  layout = rex.layout.block{
+    flavor = "com.superlogical.terminal.shell",
+    options = { cwd = rex.args.cwd, initial_input = rex.args.input },
+  },
 }
+if err ~= nil then error(err, 0) end
+`;
 
 /**
- * Write the run's transcript to a file and start a fresh Pi session on it in a new Ghostty window. Returns the shell
- * command; throws with that command outside Ghostty on macOS, so it can be run by hand.
+ * Write the run's transcript to a file and start a fresh Pi session on it in a new Rex tab. Returns the shell
+ * command; throws with that command outside Rex, so it can be run by hand.
  */
 export async function openInPi(transcript: RunTranscript): Promise<string> {
     const directory = join(tmpdir(), "pi-jobs");
@@ -32,10 +31,12 @@ export async function openInPi(transcript: RunTranscript): Promise<string> {
     await writeFile(file, transcriptMarkdown(transcript), "utf8");
     const prompt = `This file is a run of my pi-jobs job ${transcript.job}. Read it and help me act on what it found.`;
     const command = `pi @'${file}' '${prompt}'`;
-    const inGhostty = process.env.GHOSTTY_RESOURCES_DIR !== undefined || process.env.TERM_PROGRAM === "ghostty";
-    if (process.platform !== "darwin" || !inGhostty) {
-        throw new Error(`Open in Pi needs Ghostty on macOS. Run it yourself: ${command}`);
+    const bin = process.env.REX_BIN_DIR;
+    if (process.env.TERM_PROGRAM !== "rex" || !bin) {
+        throw new Error(`Open in Pi needs Rex. Run it yourself: ${command}`);
     }
-    await run("osascript", ["-e", ghosttyWindowScript(homedir(), command)]);
+    // --autostart=false: a server started from here would hand this process's environment to every terminal in it.
+    const args = JSON.stringify({ cwd: homedir(), input: `${command}\n` });
+    await run(join(bin, "rex"), ["--autostart=false", "do", "-e", NEW_TAB_SCRIPT, "--args", args], { timeout: 5000 });
     return command;
 }

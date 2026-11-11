@@ -36,6 +36,7 @@
             "pi-jobs/index.ts",
             "pi-notify/index.ts",
             "pi-quote-copy/index.ts",
+            "pi-rex-split/index.ts",
             "pi-slack-user/index.ts",
             "pi-system-theme/index.ts",
             "pi-verbosity-control/index.ts",

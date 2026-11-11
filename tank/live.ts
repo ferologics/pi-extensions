@@ -15,7 +15,7 @@ export interface LiveSession {
     project: { key: string; name: string };
     /** The session's name, else the first line of its first prompt. */
     label: string;
-    /** Ghostty's AppleScript terminal id (surface UUID), when the session runs in Ghostty. */
+    /** The Rex block ($REX_BLOCK) the session runs in, when it runs in Rex. Rex keeps it across server restarts. */
     terminalId?: string;
     status: Status;
     statusSince: string;
