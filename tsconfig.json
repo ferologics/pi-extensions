@@ -14,7 +14,10 @@
         "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core"
       ],
       "@earendil-works/pi-ai": [
-        "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai"
+        "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/pi-ai-extension-view"
+      ],
+      "@earendil-works/pi-ai/compat": [
+        "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/compat"
       ],
       "@earendil-works/pi-coding-agent": ["/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent"],
       "@earendil-works/pi-tui": [

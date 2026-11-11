@@ -8,9 +8,10 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { StringEnum, Type } from "@earendil-works/pi-ai";
+import { StringEnum } from "@earendil-works/pi-ai";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, truncateHead } from "@earendil-works/pi-coding-agent";
 import type { Extension, ToolRegistration } from "@earendil-works/pi-durable";
+import { Type } from "typebox";
 import { searchBrave } from "./brave.js";
 import { searchClaude } from "./claude.js";
 import { searchCodex } from "./codex.js";

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { calculateCost, StringEnum, Type, type Usage } from "@earendil-works/pi-ai";
+import { calculateCost, StringEnum, type Usage } from "@earendil-works/pi-ai";
 import {
     DEFAULT_MAX_BYTES,
     DEFAULT_MAX_LINES,
@@ -12,6 +12,7 @@ import {
     getAgentDir,
     truncateHead,
 } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { searchBrave } from "./brave.js";
 import { searchClaude } from "./claude.js";
 import { searchCodex } from "./codex.js";

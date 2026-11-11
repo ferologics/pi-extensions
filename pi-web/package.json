@@ -41,7 +41,8 @@
     "peerDependencies": {
         "@earendil-works/pi-ai": "*",
         "@earendil-works/pi-coding-agent": "*",
-        "@earendil-works/pi-durable": "*"
+        "@earendil-works/pi-durable": "*",
+        "typebox": "*"
     },
     "peerDependenciesMeta": {
         "@earendil-works/pi-durable": {

@@ -1,8 +1,9 @@
 // Tank himself: in sessions whose cwd is Tank's home, register his tools and, when his notes are on, put NOTES.md in
 // his prompt. Every other session gets none of this.
 
-import { StringEnum, Type } from "@earendil-works/pi-ai";
+import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { ago } from "./board.js";
 import { editNotes, NOTES_FILE, readNotes, readTankConfig, type TankConfig } from "./home.js";
 import { type LiveSession, listLive, liveDir, resolveTarget, socketPath } from "./live.js";

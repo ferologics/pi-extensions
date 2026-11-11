@@ -1,5 +1,5 @@
-import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { formatSlackThread } from "./format.js";
 import { SlackUserClient } from "./slack.js";
 import { buildSlackReplyPermalink, parseSlackPermalink } from "./url.js";

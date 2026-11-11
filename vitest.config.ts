@@ -6,10 +6,11 @@ export default defineConfig({
             "@earendil-works/pi-agent-core":
                 "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core",
             "@earendil-works/pi-ai":
-                "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai",
+                "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/pi-ai-extension-view.js",
             "@earendil-works/pi-coding-agent": "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent",
             "@earendil-works/pi-tui":
                 "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui",
+            typebox: "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/typebox",
         },
     },
     test: {

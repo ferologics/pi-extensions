@@ -57,11 +57,12 @@ Extensions import from pi's packages. The `tsconfig.json` maps these:
 
 - `@earendil-works/pi-coding-agent` - Extension API
 - `@earendil-works/pi-agent-core` - Message types
-- `@earendil-works/pi-ai` - Content types
+- `@earendil-works/pi-ai` - Pi's extension view of pi-ai (`dist/core/extensions/pi-ai-extension-view`): what Pi gives extensions at run time, pi-ai's compat entry plus a TypeBox-typed `StringEnum` (`@earendil-works/pi-ai/compat` stays the package's own, which the view re-exports)
 - `@earendil-works/pi-tui` - TUI utilities
 - `typebox` - Schema types
 
 TypeScript and Vitest resolve these host packages from `/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent`.
+Import `Type`, `Static` and `TSchema` from `typebox` and `StringEnum` from `@earendil-works/pi-ai`, as Pi's extension docs do.
 Install Pi before running checks. `.npmrc` disables automatic peer installation so `npm install` and `npm ci` install the test dependencies without creating a second Pi runtime.
 
 ## Style

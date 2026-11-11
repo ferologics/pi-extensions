@@ -3,9 +3,10 @@
  * board, and sessions in Tank's home are Tank, the meta agent. See README.md, and VISION.md / TODO.md for where this goes.
  */
 
-import { StringEnum, Type } from "@earendil-works/pi-ai";
+import { StringEnum } from "@earendil-works/pi-ai";
 import { type ExtensionAPI, type ExtensionContext, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 import { registerTank } from "./agent.js";
 import { Board, TOGGLE_KEY } from "./board.js";
 import { listLive, liveDir, resolveTarget, socketPath } from "./live.js";
