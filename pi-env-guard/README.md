@@ -19,7 +19,7 @@ extensions keep them in `process.env`. This is the same layer as Codex's `shell_
     "hide": ["*KEY*", "*SECRET*", "*TOKEN*", "*PASSWORD*"],
     "envFiles": ["~/.pi/agent/env.op"],
     "allow": ["DATABASE_URL", "GH_TOKEN"],
-    "refill": ["/bin/launchctl", "getenv", "{name}"]
+    "refill": ["/bin/launchctl", "asuser", "501", "/bin/launchctl", "getenv", "{name}"]
 }
 ```
 
@@ -43,7 +43,11 @@ output in `process.env`. Pi reads provider keys per request, so that is early en
 refilled: those from `envFiles` and exact (non-glob) `hide` entries. A failing command or empty output leaves the key
 unset. Point it at a fast local cache, not a vault CLI that takes seconds:
 
-- macOS `launchctl` session env: `["/bin/launchctl", "getenv", "{name}"]`
+- macOS `launchctl` session env: `["/bin/launchctl", "asuser", "501", "/bin/launchctl", "getenv", "{name}"]`, with your
+  UID (`id -u`) in place of `501`. `launchctl setenv`/`getenv` act on the caller's launchd session, and a tmux server
+  (pi-subagent runs each subagent in one) moves itself from the GUI (`Aqua`) session to `Background`, where a plain
+  `launchctl getenv` finds nothing. `asuser` runs the lookup in your GUI session from either; it needs no root for your
+  own UID.
 - macOS Keychain: `["/usr/bin/security", "find-generic-password", "-s", "pi", "-a", "{name}", "-w"]`
 
 ## What it does not cover
