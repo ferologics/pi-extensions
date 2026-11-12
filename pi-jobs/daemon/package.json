@@ -7,11 +7,12 @@
         "start": "node --disable-warning=ExperimentalWarning --import ./resolve-ts.mjs main.ts"
     },
     "dependencies": {
-        "@earendil-works/chord": "1.4.0",
-        "@earendil-works/pi-ai": "1.4.0",
-        "@earendil-works/pi-coding-agent": "1.4.0",
-        "@earendil-works/pi-durable": "1.4.0",
-        "@ferologics/pi-web": "0.2.0",
+        "@earendil-works/chord": "1.5.2",
+        "@earendil-works/pi-ai": "1.5.2",
+        "@earendil-works/pi-coding-agent": "1.5.2",
+        "@earendil-works/pi-durable": "1.5.2",
+        "@earendil-works/pi-schema": "1.5.2",
+        "@ferologics/pi-web": "0.2.1",
         "cron-parser": "5.10.2"
     },
     "devDependencies": {

@@ -3,9 +3,9 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { Type } from "@earendil-works/pi-ai";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, truncateHead } from "@earendil-works/pi-coding-agent";
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable";
+import { obj, opt, str } from "@earendil-works/pi-schema";
 import { COMMAND_TOOL } from "./jobs.js";
 
 const run = promisify(execFile);
@@ -85,7 +85,7 @@ export function createJobTools(host: ToolHost): Extension {
     const jobCommand = defineTool({
         name: COMMAND_TOOL,
         description: "Run this job's configured command on the user's Mac and return its exit status and output.",
-        parameters: Type.Object({}),
+        parameters: obj({}),
         execute: async (_args, api) => {
             const command = await host.command(api.conversationId);
             if (!command) throw new Error("This job has no command.");
@@ -101,10 +101,10 @@ export function createJobTools(host: ToolHost): Extension {
         description:
             "Notify the user: shows a desktop notification and marks this run as one to check in /jobs. " +
             "Call it only when the job's instructions say the finding needs the user's attention.",
-        parameters: Type.Object({
-            title: Type.String({ description: "Short headline." }),
-            message: Type.String({ description: "One or two sentences: what changed and what to do." }),
-            url: Type.Optional(Type.String({ description: "Link to the source, if any." })),
+        parameters: obj({
+            title: str({ description: "Short headline." }),
+            message: str({ description: "One or two sentences: what changed and what to do." }),
+            url: opt(str({ description: "Link to the source, if any." })),
         }),
         execute: async (args, api) => {
             await host.notify(api.conversationId, args);
