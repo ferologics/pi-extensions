@@ -36,7 +36,7 @@
         "turndown-plugin-gfm": "^1.0.2"
     },
     "devDependencies": {
-        "@earendil-works/pi-durable": "1.4.0"
+        "@earendil-works/pi-durable": "1.5.2"
     },
     "peerDependencies": {
         "@earendil-works/pi-ai": "*",
